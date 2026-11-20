@@ -1,0 +1,1486 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D7350">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Nährwerte">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>Nährwert-Scanner</title>
+<style>
+    :root {
+        --bg: #F4F6F4; --card: #FFFFFF; --ink: #16201B; --mute: #56615B; --line: #E2E7E3;
+        --acc: #1D7350; --acc-dark: #145A3D; --acc-soft: #E3F1EA; --warn: #A8510A; --warn-soft: #FBEBDC; --track: #E4E9E6;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif; font-size: 16px; line-height: 1.35; }
+    button, input, select { font: inherit; color: inherit; }
+    a { color: var(--acc); }
+    .screen { display: none; min-height: 100vh; padding: calc(env(safe-area-inset-top) + 16px) 20px calc(env(safe-area-inset-bottom) + 32px); max-width: 560px; margin: 0 auto; }
+    .screen.active { display: flex; flex-direction: column; gap: 16px; }
+    .row { display: flex; align-items: center; gap: 10px; }
+    .between { justify-content: space-between; }
+    h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+    h2 { margin: 0; font-size: 18px; font-weight: 700; }
+    h3 { margin: 0; font-size: 19px; font-weight: 700; }
+    .mute { color: var(--mute); }
+    .small { font-size: 13px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; }
+    .icon-btn { width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+    .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; border: 0; background: none; padding: 0; font-size: 17px; font-weight: 600; cursor: pointer; color: var(--ink); }
+    .scan-hero { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; height: 260px; border-radius: 28px; border: 0; background: var(--acc); color: #fff; cursor: pointer; width: 100%; }
+    .scan-hero:active, .scan-bar:active { background: var(--acc-dark); }
+    .scan-hero .big { font-size: 30px; font-weight: 800; }
+    .scan-hero .sub { font-size: 16px; color: #DCEFE5; }
+    .scan-bar { display: flex; align-items: center; justify-content: center; gap: 12px; height: 72px; border-radius: 22px; border: 0; background: var(--acc); color: #fff; font-size: 21px; font-weight: 800; cursor: pointer; width: 100%; }
+    .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .btn2 { display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); font-size: 15px; font-weight: 600; cursor: pointer; }
+    .list-head { display: flex; justify-content: space-between; align-items: baseline; padding: 16px 16px 12px; }
+    .link-btn { border: 0; background: none; padding: 0; font-size: 14px; font-weight: 600; color: var(--acc); cursor: pointer; min-height: 32px; }
+    .hist-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); min-height: 60px; width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; cursor: pointer; }
+    .hist-row .nm { font-size: 17px; font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hist-row .meta { font-size: 14px; color: var(--mute); }
+    .hist-row .kc { font-size: 15px; font-weight: 600; white-space: nowrap; }
+    .thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: contain; background: #EEF1EF; flex: none; }
+    .empty { padding: 4px 16px 18px; color: var(--mute); font-size: 15px; }
+
+    /* Scan */
+    #screen-scan { background: #0E1411; color: #fff; max-width: none; }
+    #screen-scan .back { color: #fff; }
+    .cam { position: relative; flex: 1; min-height: 360px; border-radius: 24px; background: #2A332E; overflow: hidden; }
+    .cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .cam .frame { position: absolute; left: 50%; top: 50%; width: 78%; max-width: 320px; height: 170px; transform: translate(-50%, -50%); border: 3px solid #5FD39D; border-radius: 18px; pointer-events: none; }
+    .cam .laser { position: absolute; left: 8%; right: 8%; top: 50%; height: 2px; background: #FF6B5E; }
+    .scan-msg { text-align: center; display: flex; flex-direction: column; gap: 6px; }
+    .scan-msg .t { font-size: 20px; font-weight: 700; }
+    .scan-msg .s { font-size: 15px; color: #B9C4BE; }
+    .scan-msg .err { color: #FFC58A; font-weight: 600; }
+    .dark-btn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border-radius: 16px; border: 0; background: #26302B; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .torch { width: 44px; height: 44px; border-radius: 22px; border: 0; background: #26302B; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+    .torch.on { background: #F5C451; }
+
+    /* Ergebnis */
+    .prod { display: flex; gap: 14px; padding: 16px; }
+    .prod img, .prod .ph { width: 76px; height: 76px; flex: none; border-radius: 14px; background: #EEF1EF; object-fit: contain; }
+    .prod .ph { display: flex; align-items: center; justify-content: center; color: var(--mute); }
+    .prod h1 { font-size: 22px; line-height: 1.2; }
+    .src { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--acc-soft); color: #174E37; font-size: 14px; line-height: 1.45; }
+    .src.warn { background: var(--warn-soft); color: #6B3406; }
+    .bls-panel { display: flex; flex-direction: column; gap: 8px; padding: 14px; }
+    .cand { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); cursor: pointer; }
+    .cand.sel { border: 2px solid var(--acc); background: var(--acc-soft); }
+    .cand .n { font-size: 15px; font-weight: 600; }
+    .cand .d { font-size: 13px; color: var(--mute); }
+    .search-row { display: flex; gap: 8px; }
+    .inp { flex: 1; min-width: 0; height: 48px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); font-size: 16px; }
+    .inp:focus { outline: 2px solid var(--acc); outline-offset: 0; }
+    .pbtn { height: 48px; padding: 0 16px; border-radius: 14px; border: 0; background: var(--acc); color: #fff; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: #E6EAE7; }
+    .seg button { height: 44px; border-radius: 12px; border: 0; background: transparent; color: var(--mute); font-size: 15px; font-weight: 500; cursor: pointer; }
+    .seg button.on { background: var(--card); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+    .grams { display: flex; align-items: center; gap: 10px; }
+    .energy { display: flex; flex-direction: column; gap: 8px; padding: 18px 16px; }
+    .energy .v { font-size: 44px; font-weight: 800; letter-spacing: -0.03em; }
+    .energy .u { font-size: 20px; font-weight: 600; }
+    .pct { font-size: 18px; font-weight: 700; color: var(--acc); }
+    .bar { height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+    .bar > div { height: 100%; border-radius: 4px; background: var(--acc); }
+    .bar.lim > div { background: var(--warn); }
+    .bar.big { height: 12px; border-radius: 6px; }
+    .bar.mid { height: 10px; border-radius: 5px; }
+    .tile { display: flex; flex-direction: column; gap: 6px; padding: 14px; }
+    .tile .l { font-size: 15px; font-weight: 600; color: var(--mute); }
+    .tile .v { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+    .tile .v span { font-size: 17px; font-weight: 600; }
+    .tile .s { font-size: 14px; color: var(--mute); }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; font-size: 13px; color: var(--mute); }
+    .chip { font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+    .chip.bls { color: var(--acc); background: var(--acc-soft); }
+    .chip.est { color: var(--warn); background: var(--warn-soft); }
+    .grp { overflow: hidden; }
+    .grp-head { padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+    .mrow { display: flex; flex-direction: column; gap: 7px; padding: 12px 16px; border-top: 1px solid var(--line); }
+    .mrow .top { display: flex; align-items: center; gap: 8px; }
+    .mrow .n { flex: 1; font-size: 17px; font-weight: 600; }
+    .mrow .val { font-size: 16px; white-space: nowrap; }
+    .mrow .p { width: 56px; text-align: right; font-size: 16px; font-weight: 700; color: var(--acc); }
+    .mrow.lim .p { color: var(--warn); }
+    .mrow.na .val, .mrow.na .p { color: var(--mute); font-weight: 500; }
+    #result-body { display: flex; flex-direction: column; gap: 16px; }
+    .notice { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .spinner { width: 36px; height: 36px; border-radius: 50%; border: 4px solid var(--track); border-top-color: var(--acc); animation: spin 0.9s linear infinite; margin: 30px auto 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Einstellungen */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label, .field .lab { font-size: 15px; font-weight: 600; color: var(--mute); }
+    .numbox { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+    .numbox input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 18px; font-weight: 600; }
+    .numbox span { color: var(--mute); }
+    .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    select.sel { height: 52px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); font-size: 16px; font-weight: 600; }
+    .need-row { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); font-size: 16px; }
+    .need-row b { font-weight: 700; }
+
+    /* Dialog Ziffern */
+    .modal { position: fixed; inset: 0; background: rgba(10, 16, 13, 0.55); display: none; align-items: flex-end; justify-content: center; z-index: 20; }
+    .modal.open { display: flex; }
+    .sheet { width: 100%; max-width: 560px; background: var(--card); border-radius: 22px 22px 0 0; padding: 20px 20px calc(env(safe-area-inset-bottom) + 20px); display: flex; flex-direction: column; gap: 12px; }
+    .vis-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<!-- 1 · Start -->
+<section id="screen-home" class="screen active" aria-label="Start">
+    <div class="row between">
+        <h1>Nährwert-Scanner</h1>
+        <button type="button" class="icon-btn" aria-label="Tagesbedarf und Einstellungen" onclick="go('settings')">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16201B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
+        </button>
+    </div>
+    <button type="button" class="scan-hero" onclick="startScan()">
+        <svg aria-hidden="true" width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 8v8"></path><path d="M10 8v8"></path><path d="M13 8v8"></path><path d="M17 8v8"></path></svg>
+        <span class="big">Scannen</span>
+        <span class="sub">Strichcode mit der Kamera erfassen</span>
+    </button>
+    <div class="grid2">
+        <button type="button" class="btn2" onclick="openDigits()">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16201B" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 9h.01M11 9h.01M15 9h.01M7 13h.01M11 13h.01M15 13h.01M8 16h8"></path></svg>
+            Ziffern eingeben
+        </button>
+        <label class="btn2">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16201B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"></path><circle cx="12" cy="14" r="3.5"></circle></svg>
+            Aus Foto
+            <input type="file" accept="image/*" class="vis-hidden" onchange="scanPhotoFile(event)">
+        </label>
+    </div>
+    <div class="card" style="overflow: hidden">
+        <div class="list-head">
+            <h2>Zuletzt gescannt</h2>
+            <button type="button" class="link-btn" id="hist-toggle" onclick="toggleHistory()">Alle anzeigen</button>
+        </div>
+        <div id="hist-list"></div>
+    </div>
+    <div id="home-status" class="small mute" style="text-align: center"></div>
+</section>
+
+<!-- 2 · Scannen -->
+<section id="screen-scan" class="screen" aria-label="Strichcode scannen">
+    <div class="row between">
+        <button type="button" class="back" onclick="leaveScan()">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+            Abbrechen
+        </button>
+        <button type="button" id="torch-btn" class="torch" aria-label="Taschenlampe" aria-pressed="false" onclick="toggleTorch()" hidden>
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"></path></svg>
+        </button>
+    </div>
+    <div class="cam">
+        <video id="video" playsinline muted autoplay></video>
+        <div class="frame"><div class="laser"></div></div>
+    </div>
+    <div class="scan-msg">
+        <span class="t">Strichcode in den Rahmen halten</span>
+        <span class="s" id="scan-status">Kamera wird gestartet …</span>
+    </div>
+    <div class="grid2">
+        <button type="button" class="dark-btn" onclick="leaveScan(); openDigits();">Ziffern eingeben</button>
+        <label class="dark-btn">
+            Foto aufnehmen
+            <input type="file" accept="image/*" capture="environment" class="vis-hidden" onchange="scanPhotoFile(event)">
+        </label>
+    </div>
+</section>
+
+<!-- 3 · Ergebnis -->
+<section id="screen-result" class="screen" aria-label="Nährwerte">
+    <div class="row between">
+        <button type="button" class="back" onclick="go('home')">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16201B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+            Start
+        </button>
+        <button type="button" class="icon-btn" aria-label="Tagesbedarf und Einstellungen" onclick="go('settings')">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16201B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
+        </button>
+    </div>
+    <button type="button" class="scan-bar" onclick="startScan()">
+        <svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 8v8"></path><path d="M10 8v8"></path><path d="M13 8v8"></path><path d="M17 8v8"></path></svg>
+        Neuen Strichcode scannen
+    </button>
+    <div id="result-body"></div>
+</section>
+
+<!-- 4 · Tagesbedarf -->
+<section id="screen-settings" class="screen" aria-label="Mein Tagesbedarf">
+    <div class="row">
+        <button type="button" class="back" onclick="goBack()">
+            <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16201B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+            Zurück
+        </button>
+    </div>
+    <h1>Mein Tagesbedarf</h1>
+    <div class="field">
+        <span class="lab">Geschlecht</span>
+        <div class="seg" role="group" aria-label="Geschlecht">
+            <button type="button" id="sex-m" onclick="setSex('m')">Mann</button>
+            <button type="button" id="sex-f" onclick="setSex('f')">Frau</button>
+        </div>
+    </div>
+    <div class="grid3">
+        <div class="field"><label for="set-age">Alter</label><div class="numbox"><input id="set-age" type="number" inputmode="numeric" min="14" max="100" oninput="saveSettings()"><span>J.</span></div></div>
+        <div class="field"><label for="set-weight">Gewicht</label><div class="numbox"><input id="set-weight" type="number" inputmode="decimal" min="30" max="250" oninput="saveSettings()"><span>kg</span></div></div>
+        <div class="field"><label for="set-height">Größe</label><div class="numbox"><input id="set-height" type="number" inputmode="numeric" min="120" max="230" oninput="saveSettings()"><span>cm</span></div></div>
+    </div>
+    <div class="field">
+        <label for="set-activity">Aktivität</label>
+        <select id="set-activity" class="sel" onchange="saveSettings()">
+            <option value="1.15">Sitzend, kaum Bewegung</option>
+            <option value="1.2735">Leicht – 1–3× Sport pro Woche</option>
+            <option value="1.45">Mittel – 3–5× Sport pro Woche</option>
+            <option value="1.65">Hoch – 6–7× Sport pro Woche</option>
+            <option value="1.85">Sehr hoch – körperliche Arbeit / 2× täglich</option>
+        </select>
+    </div>
+    <div class="card" style="padding: 6px 16px 8px">
+        <h2 style="padding: 10px 0">Daraus berechnet</h2>
+        <div id="needs-list"></div>
+    </div>
+    <p class="small mute" style="margin: 0; line-height: 1.5">Energie nach Mifflin-St Jeor × Aktivität, Verteilung Eiweiß/Fett/Kohlenhydrate wie im Ernährungsrechner (27/32/41 %). Vitamine und Mineralstoffe: Referenzwerte der DGE für Erwachsene. Alles wird nur auf diesem Gerät gespeichert.</p>
+    <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+        <button type="button" class="btn2" onclick="location.reload()">↻ App neu laden</button>
+        <button type="button" class="btn2" onclick="clearHistory()">Verlauf löschen</button>
+        <span class="small mute" id="app-version"></span>
+    </div>
+</section>
+
+<!-- Ziffern-Eingabe -->
+<div class="modal" id="digits-modal" onclick="if (event.target === this) closeDigits()">
+    <form class="sheet" onsubmit="event.preventDefault(); submitDigits();">
+        <h2>Strichcode-Ziffern</h2>
+        <label for="digits-input" class="small mute">8 oder 13 Ziffern unter dem Strichcode</label>
+        <input id="digits-input" class="inp" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9 ]*" placeholder="z. B. 4001234567890">
+        <div class="grid2">
+            <button type="button" class="btn2" onclick="closeDigits()">Abbrechen</button>
+            <button type="submit" class="pbtn" style="height: 52px; border-radius: 16px">Suchen</button>
+        </div>
+    </form>
+</div>
+
+<script>
+        // ===== Aus dem Ernährungsrechner übernommen (Nährstoffliste, Schätzprofile, BLS-Zuordnung) =====
+        var MICRO_CONFIG = [
+            { key: 'mg', label: 'Магний (Mg)', short: 'Mg', unit: 'мг', target: 350, dec: 0, barClass: 'bg-teal-500', off: ['magnesium'], offUnit: 'mg', usda: [1090] },
+            { key: 'ca', label: 'Кальций (Ca)', short: 'Ca', unit: 'мг', target: 1000, ul: 2500, dec: 0, barClass: 'bg-cyan-500', off: ['calcium'], offUnit: 'mg', usda: [1087] },
+            { key: 'k', label: 'Калий (K)', short: 'K', unit: 'мг', target: 4000, dec: 0, barClass: 'bg-blue-500', off: ['potassium'], offUnit: 'mg', usda: [1092] },
+            { key: 'na', label: 'Натрий (Na)', short: 'Na', unit: 'мг', target: 2400, limit: true, dec: 0, barClass: 'bg-stone-400', off: ['sodium'], offUnit: 'mg', usda: [1093], note: '≈ 6 г соли (DGE)' },
+            { key: 'fe', label: 'Железо (Fe)', short: 'Fe', unit: 'мг', target: 11, ul: 40, ulNote: 'безопасный уровень EFSA', dec: 1, barClass: 'bg-orange-700', off: ['iron'], offUnit: 'mg', usda: [1089] },
+            { key: 'zn', label: 'Цинк (Zn)', short: 'Zn', unit: 'мг', target: 16, ul: 25, dec: 1, barClass: 'bg-sky-500', off: ['zinc'], offUnit: 'mg', usda: [1095] },
+            { key: 'se', label: 'Селен (Se)', short: 'Se', unit: 'мкг', target: 70, ul: 255, dec: 1, barClass: 'bg-purple-500', off: ['selenium'], offUnit: 'ug', usda: [1103] },
+            { key: 'iod', label: 'Йод (I)', short: 'I', unit: 'мкг', target: 200, ul: 600, ulNote: 'EFSA; BfR советует ≤500', dec: 1, barClass: 'bg-indigo-500', off: ['iodine'], offUnit: 'ug', usda: [1100] },
+            { key: 'fol', label: 'Фолат (B9)', short: 'Фолат', unit: 'мкг', target: 300, dec: 0, barClass: 'bg-pink-500', off: ['folates'], offAlt: ['vitamin-b9'], offUnit: 'ug', usda: [1177] },
+            { key: 'vitA', label: 'Витамин A (RAE)', short: 'Вит.A', unit: 'мкг', target: 850, ul: 3000, ulKey: 'ret', ulNote: 'считается только ретинол (животные продукты), не бета-каротин', dec: 0, barClass: 'bg-orange-500', off: ['vitamin-a'], offUnit: 'ug', usda: [1106] },
+            { key: 'ret', label: 'Ретинол (часть вит. A)', short: 'Ретинол', unit: 'мкг', target: 0, hidden: true, dec: 0, off: [], offUnit: 'ug', usda: [1105] },
+            { key: 'vitD', label: 'Витамин D', short: 'Вит.D', unit: 'мкг', target: 20, ul: 100, dec: 1, barClass: 'bg-yellow-400', off: ['vitamin-d'], offUnit: 'ug', usda: [1114], note: 'без синтеза в коже (DGE)' },
+            { key: 'vitK', label: 'Витамин K (K1+K2)', short: 'Вит.K', unit: 'мкг', target: 70, dec: 1, barClass: 'bg-lime-500', off: ['vitamin-k'], offUnit: 'ug', usda: [1185, 1183] },
+            { key: 'vitB12', label: 'Витамин B12', short: 'B12', unit: 'мкг', target: 4.0, dec: 1, barClass: 'bg-rose-500', off: ['vitamin-b12'], offUnit: 'ug', usda: [1178] },
+            { key: 'vitC', label: 'Витамин C', short: 'Вит.C', unit: 'мг', target: 110, dec: 0, barClass: 'bg-amber-500', off: ['vitamin-c'], offUnit: 'mg', usda: [1162] },
+            { key: 'vitB6', label: 'Витамин B6', short: 'B6', unit: 'мг', target: 1.6, ul: 12, dec: 2, barClass: 'bg-violet-500', off: ['vitamin-b6'], offUnit: 'mg', usda: [1175] },
+            { key: 'vitE', label: 'Витамин E', short: 'Вит.E', unit: 'мг', target: 14, ul: 300, dec: 1, barClass: 'bg-emerald-500', off: ['vitamin-e'], offUnit: 'mg', usda: [1109] },
+            { key: 'epadha', label: 'Омега-3 EPA+DHA', short: 'EPA+DHA', unit: 'мг', target: 250, dec: 0, barClass: 'bg-sky-700', off: ['eicosapentaenoic-acid', 'docosahexaenoic-acid'], offUnit: 'mg', usda: [1278, 1272], usdaScale: 1000, note: 'EFSA AI' },
+            { key: 'ala', label: 'Омега-3 ALA', short: 'ALA', unit: 'г', target: 1.2, dec: 2, barClass: 'bg-green-600', off: ['alpha-linolenic-acid'], offUnit: 'g', usda: [1404], usdaAlt: [1270], note: '0,5% энергии (DGE)',
+              targetFn: function(s) { return Math.round(s.targetKcal * 0.005 / 9 * 10) / 10; } }
+        ];
+        var MICRO_BY_KEY = {};
+        MICRO_CONFIG.forEach(function(m) { MICRO_BY_KEY[m.key] = m; });
+        var VISIBLE_MICROS = MICRO_CONFIG.filter(function(m) { return !m.hidden; });
+
+        // Компактная запись профилей. Порядок аргументов:
+        // mg, ca, k, na, fe, zn, se, iod, fol, vitA, ret, vitD, vitK, vitB12, vitC, vitB6, vitE, epadha(мг), ala(г)
+        function M(mg, ca, k, na, fe, zn, se, iod, fol, vitA, ret, vitD, vitK, vitB12, vitC, vitB6, vitE, epadha, ala) {
+            return { mg: mg, ca: ca, k: k, na: na, fe: fe, zn: zn, se: se, iod: iod, fol: fol, vitA: vitA, ret: ret, vitD: vitD, vitK: vitK, vitB12: vitB12, vitC: vitC, vitB6: vitB6, vitE: vitE, epadha: epadha, ala: ala };
+        }
+
+        // Профили для ОЦЕНКИ отсутствующих значений. Порядок важен: первый совпавший профиль выигрывает.
+        // Ключевые слова сравниваются по словам (не по подстроке): начало слова, точное совпадение
+        // для коротких слов (≤3 букв), а для латиницы также конец составного слова (Räucherlachs, Vollkornreis).
+        var SCIENTIFIC_MICRO_PROFILES = [
+            // Печень и яйца стоят первыми: «Rinderleber», «Hühnerei», «яйцо куриное» иначе попали бы в профиль мяса/птицы
+            { keywords: ['leber', 'liver', 'печень', 'печени'], satRatio: 0.32, fib: 0, micros: M(18, 6, 313, 70, 6.5, 4.0, 39.7, 14, 290, 4900, 4900, 1.2, 3, 59, 1.3, 1.08, 0.4, 80, 0.01) },
+            { keywords: ['ei', 'eier', 'hühnerei', 'spiegelei', 'rührei', 'egg', 'eggs', 'яйц', 'яйцо', 'омлет', 'желток'], satRatio: 0.28, fib: 0, micros: M(12, 56, 138, 140, 1.8, 1.3, 30.8, 48, 47, 160, 160, 2.0, 6, 1.1, 0, 0.17, 1.1, 60, 0.04) },
+            { keywords: ['hähnchen', 'huhn', 'hühner', 'pute', 'puten', 'chicken', 'turkey', 'poultry', 'geflügel', 'куриц', 'курин', 'индейк', 'филе грудк'], satRatio: 0.28, fib: 0, micros: M(29, 15, 256, 70, 0.8, 1.0, 27.6, 6, 4, 6, 6, 0.2, 2, 0.3, 0, 0.60, 0.3, 30, 0.05) },
+            { keywords: ['rind', 'steak', 'beef', 'hackfleisch', 'kalb', 'говядин', 'телятин', 'стейк', 'фарш'], satRatio: 0.42, fib: 0, micros: M(22, 11, 348, 60, 2.6, 5.8, 26, 5, 8, 3, 3, 0.1, 1.5, 2.6, 0, 0.50, 0.3, 20, 0.05) },
+            // Копчёности/колбасы (солёные) стоят перед свежей свининой: «Schweineschinken» → копчёности
+            { keywords: ['schinken', 'speck', 'bacon', 'wurst', 'salami', 'kassler', 'ham', 'ветчин', 'бекон', 'колбас', 'сосиск', 'сардельк', 'грудинк'], satRatio: 0.38, fib: 0, micros: M(20, 10, 300, 1500, 0.9, 2.2, 25, 5, 3, 2, 2, 0.6, 1, 0.8, 0, 0.35, 0.2, 10, 0.1) },
+            { keywords: ['schwein', 'pork', 'свинин'], satRatio: 0.38, fib: 0, micros: M(24, 14, 350, 60, 1.0, 2.4, 32, 5, 5, 2, 2, 0.5, 1, 0.8, 0, 0.45, 0.2, 10, 0.1) },
+            { keywords: ['lachs', 'salmon', 'forelle', 'trout', 'makrele', 'mackerel', 'hering', 'herring', 'sardine', 'лосось', 'семга', 'сёмга', 'форель', 'скумбри', 'сельдь', 'сардин'], satRatio: 0.20, fib: 0, micros: M(27, 12, 363, 60, 0.5, 0.6, 36.5, 35, 26, 50, 50, 10, 0.5, 3.2, 0, 0.80, 3.6, 1800, 0.2) },
+            { keywords: ['thunfisch', 'tuna', 'kabeljau', 'seelachs', 'fisch', 'fish', 'cod', 'pollock', 'тунец', 'треска', 'минтай', 'рыба', 'хек', 'дорадо'], satRatio: 0.22, fib: 0, micros: M(30, 16, 320, 80, 0.4, 0.7, 65, 120, 12, 18, 18, 1.5, 0.2, 2.2, 0, 0.45, 0.8, 250, 0.01) },
+            { keywords: ['garnelen', 'garnele', 'shrimp', 'prawn', 'meeresfrüchte', 'креветк', 'кальмар', 'мидии', 'морепродукт'], satRatio: 0.22, fib: 0, micros: M(37, 70, 259, 200, 0.5, 1.6, 38, 90, 24, 54, 54, 0.1, 0.1, 1.4, 0, 0.12, 1.1, 300, 0.01) },
+            { keywords: ['quark', 'skyr', 'hüttenkäse', 'frischkäse', 'cottage', 'творог', 'творож', 'скир', 'сырок', 'сырник'], satRatio: 0.62, fib: 0, micros: M(11, 120, 112, 40, 0.1, 0.5, 8.5, 12, 18, 25, 25, 0.1, 1, 0.7, 0.5, 0.08, 0.1, 0, 0.02) },
+            // Кисломолочный сыр (Harzer и т.п.): почти без жира, очень солёный, мало кальция
+            { keywords: ['harzer', 'sauermilchkäse', 'handkäse', 'quargel', 'olmützer'], satRatio: 0.60, fib: 0, micros: M(13, 125, 106, 1500, 0.3, 2.2, 10, 10, 20, 10, 10, 0, 5, 1.0, 0, 0.06, 0.1, 0, 0) },
+            { keywords: ['käse', 'gouda', 'edamer', 'emmentaler', 'cheddar', 'parmesan', 'mozzarella', 'camembert', 'feta', 'leerdammer', 'cheese', 'сыр', 'сыры', 'гауда', 'моцарелла', 'пармезан', 'сулугуни', 'брынза', 'фета'], satRatio: 0.65, fib: 0, micros: M(29, 700, 121, 700, 0.3, 3.9, 14.5, 30, 20, 174, 165, 0.5, 40, 1.5, 0, 0.08, 0.6, 0, 0.2) },
+            { keywords: ['milch', 'joghurt', 'yogurt', 'yoghurt', 'kefir', 'buttermilch', 'sahne', 'schmand', 'milk', 'молок', 'йогурт', 'кефир', 'ряженк', 'сметан', 'сливк'], satRatio: 0.62, fib: 0, micros: M(11, 120, 150, 45, 0.05, 0.4, 3.7, 16, 10, 31, 30, 0.1, 0.5, 0.4, 1.0, 0.04, 0.1, 0, 0.02) },
+            { keywords: ['whey', 'protein', 'isolat', 'casein', 'протеин', 'изолят', 'казеин', 'гейнер'], satRatio: 0.50, fib: 0, micros: M(60, 400, 500, 200, 1.0, 1.5, 15, 15, 10, 0, 0, 0, 0, 1.5, 0, 0.10, 0, 0, 0) },
+            // refPC = белки + углеводы (г/100 г) продукта, для которого заданы значения. Оценка масштабируется
+            // по (Б+У) продукта: сухая чечевица получает ~3,5× значения варёной, варёные макароны ~0,4× сухих.
+            { keywords: ['hafer', 'müsli', 'porridge', 'oat', 'oats', 'flocken', 'granola', 'овсян', 'геркулес', 'мюсли', 'гранола'], satRatio: 0.18, fib: 10.0, refPC: 72, micros: M(130, 54, 362, 3, 4.0, 3.6, 28.9, 4, 56, 0, 0, 0, 2, 0, 0, 0.12, 0.7, 0, 0.1) },
+            { keywords: ['buchweizen', 'buckwheat', 'гречк', 'гречнев'], satRatio: 0.22, fib: 2.7, refPC: 25.5, micros: M(51, 7, 88, 4, 0.8, 0.6, 2.2, 2, 14, 0, 0, 0, 1.9, 0, 0, 0.08, 0.1, 0, 0.03) },
+            { keywords: ['reis', 'rice', 'basmati', 'jasmin', 'рис', 'рисов'], satRatio: 0.25, fib: 0.4, refPC: 30.7, micros: M(12, 10, 35, 1, 0.2, 0.5, 7.5, 2, 3, 0, 0, 0, 0, 0, 0, 0.09, 0.04, 0, 0.01) },
+            // Бобовые перед макаронами: «Rote Linsen Nudeln» → бобовые
+            { keywords: ['linsen', 'berglinsen', 'bohnen', 'kichererbsen', 'erbsen', 'tofu', 'soja', 'lentil', 'lentils', 'beans', 'chickpea', 'chickpeas', 'hummus', 'чечевиц', 'фасоль', 'нут', 'горох', 'тофу', 'соя', 'соев', 'хумус'], satRatio: 0.16, fib: 8.0, refPC: 21.2, micros: M(47, 45, 369, 5, 3.0, 1.5, 4.5, 3, 165, 2, 0, 0, 5, 0, 1.5, 0.18, 0.4, 0, 0.1) },
+            // Макароны (значения для сухих) стоят перед хлебом; «Vollkorn» больше не ключевое слово хлеба
+            { keywords: ['nudel', 'nudeln', 'pasta', 'spaghetti', 'fusilli', 'fusili', 'penne', 'makkaroni', 'farfalle', 'tagliatelle', 'lasagne', 'bulgur', 'couscous', 'макарон', 'паста', 'спагетти', 'лапш', 'булгур', 'кускус'], satRatio: 0.20, fib: 6.0, refPC: 77, micros: M(100, 30, 250, 6, 3.0, 2.0, 10, 2, 40, 0, 0, 0, 2, 0, 0, 0.18, 0.5, 0, 0.05) },
+            { keywords: ['brot', 'brötchen', 'toast', 'bread', 'baguette', 'croutons', 'crouton', 'хлеб', 'лаваш', 'батон', 'сухар'], satRatio: 0.22, fib: 5.0, refPC: 50, micros: M(45, 30, 200, 480, 1.8, 1.2, 5, 18, 35, 0, 0, 0, 1.5, 0, 0, 0.13, 0.4, 0, 0.06) },
+            { keywords: ['kartoffel', 'süßkartoffel', 'potato', 'potatoes', 'pommes', 'картофел', 'картошк', 'батат', 'пюре'], satRatio: 0.25, fib: 2.1, refPC: 19.8, micros: M(22, 8, 391, 6, 0.4, 0.3, 0.3, 3, 18, 5, 0, 0, 2, 0, 13, 0.30, 0.1, 0, 0.01) },
+            // Масла стоят ПЕРЕД семенами/орехами, чтобы «Leinöl» или «льняное масло» не попали в профиль семян
+            { keywords: ['leinöl', 'linseed oil', 'flaxseed oil', 'масло льнян', 'льняное масло'], satRatio: 0.09, fib: 0, micros: M(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0.5, 0, 53) },
+            { keywords: ['rapsöl', 'canola', 'рапсов'], satRatio: 0.07, fib: 0, micros: M(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 71, 0, 0, 0, 17.5, 0, 9.1) },
+            { keywords: ['olivenöl', 'sonnenblumenöl', 'kokosöl', 'sesamöl', 'walnussöl', 'kürbiskernöl', 'erdnussöl', 'öl', 'oil', 'olive oil', 'масло оливк', 'оливковое масло', 'масло подсолн', 'подсолнечное масло', 'масло растит', 'растительное масло'], satRatio: 0.14, fib: 0, micros: M(0, 1, 1, 1, 0.1, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 18, 0, 1.0) },
+            { keywords: ['flohsamen', 'flohsamenschalen', 'psyllium', 'псиллиум', 'подорожник'], satRatio: 0, fib: 85, micros: M(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) },
+            { keywords: ['leinsamen', 'chia', 'chiasamen', 'flax', 'flaxseed', 'льнян', 'чиа', 'семена льна'], satRatio: 0.09, fib: 27, micros: M(392, 255, 813, 30, 5.7, 4.3, 25, 1, 87, 0, 0, 0, 4.3, 0, 0.6, 0.47, 0.3, 0, 20) },
+            { keywords: ['kürbiskern', 'sonnenblumenkern', 'sesam', 'hanfsamen', 'seeds', 'семечк', 'семена', 'тыквен', 'подсолнеч', 'кунжут'], satRatio: 0.16, fib: 8.5, micros: M(450, 70, 750, 10, 7, 6.5, 15, 5, 65, 1, 0, 0, 5, 0, 1.5, 0.35, 8.5, 0, 0.15) },
+            { keywords: ['paranuss', 'paranüsse', 'brazil nut', 'brazil nuts', 'бразильск'], satRatio: 0.24, fib: 7.5, micros: M(376, 160, 659, 3, 2.4, 4.1, 1917, 2, 22, 0, 0, 0, 0, 0, 0.7, 0.10, 5.7, 0, 0.02) },
+            { keywords: ['walnuss', 'walnüsse', 'walnut', 'walnuts', 'грецк'], satRatio: 0.09, fib: 6.7, micros: M(158, 98, 441, 2, 2.9, 3.1, 4.9, 3, 98, 1, 0, 0, 2.7, 0, 1.3, 0.54, 0.7, 0, 9.1) },
+            { keywords: ['mandel', 'cashew', 'erdnuss', 'haselnuss', 'pistazie', 'nuss', 'nüsse', 'almond', 'peanut', 'hazelnut', 'миндал', 'орех', 'кешью', 'фундук', 'арахис', 'фисташк'], satRatio: 0.10, fib: 10.5, micros: M(240, 180, 680, 5, 3.5, 3.1, 6, 2, 55, 0, 0, 0, 3, 0, 0, 0.25, 15, 0, 0.05) },
+            { keywords: ['paprika', 'bell pepper', 'перец', 'паприка'], satRatio: 0.15, fib: 2.1, micros: M(12, 7, 211, 4, 0.4, 0.3, 0.1, 1, 46, 157, 0, 0, 5, 0, 128, 0.29, 1.6, 0, 0.03) },
+            { keywords: ['brokkoli', 'broccoli', 'spinat', 'spinach', 'kohl', 'salat', 'grünkohl', 'kale', 'брокколи', 'шпинат', 'капуст', 'салат', 'зелень', 'петрушк', 'укроп', 'руккола'], satRatio: 0.15, fib: 3.0, micros: M(45, 70, 420, 50, 1.5, 0.5, 1.5, 12, 145, 320, 0, 0, 200, 0, 65, 0.20, 1.8, 0, 0.1) },
+            { keywords: ['karotte', 'möhre', 'carrot', 'carrots', 'морков'], satRatio: 0.15, fib: 2.8, micros: M(12, 33, 320, 69, 0.3, 0.2, 0.1, 2, 19, 835, 0, 0, 13, 0, 5.9, 0.14, 0.7, 0, 0) },
+            { keywords: ['tomate', 'gurke', 'zucchini', 'aubergine', 'gemüse', 'tomato', 'tomatoes', 'cucumber', 'помидор', 'томат', 'огурец', 'огурц', 'кабачок', 'баклажан', 'овощ'], satRatio: 0.15, fib: 1.5, micros: M(13, 12, 220, 5, 0.3, 0.2, 0.2, 1.5, 18, 42, 0, 0, 8, 0, 14, 0.08, 0.5, 0, 0.01) },
+            { keywords: ['avocado', 'авокадо'], satRatio: 0.14, fib: 6.7, micros: M(29, 12, 485, 7, 0.55, 0.6, 0.4, 2, 81, 7, 0, 0, 21, 0, 10, 0.26, 2.1, 0, 0.11) },
+            // Сухофрукты перед свежими фруктами: «Cranberries, getrocknet» → сухофрукты
+            { keywords: ['dattel', 'datteln', 'rosinen', 'sultaninen', 'cranberr', 'goji', 'feige', 'feigen', 'trockenobst', 'getrocknet', 'dates', 'raisin', 'raisins', 'dried', 'финик', 'изюм', 'курага', 'чернослив', 'клюкв', 'сушен', 'сушён'], satRatio: 0.15, fib: 7.0, micros: M(40, 40, 600, 10, 1.2, 0.3, 2, 1, 10, 2, 0, 0, 4, 0, 1, 0.15, 0.5, 0, 0.03) },
+            { keywords: ['banane', 'banana', 'банан'], satRatio: 0.30, fib: 2.6, micros: M(27, 5, 358, 1, 0.26, 0.2, 1.0, 3, 20, 3, 0, 0, 0.5, 0, 8.7, 0.37, 0.1, 0, 0.03) },
+            { keywords: ['apfel', 'orange', 'zitrone', 'beere', 'weintraub', 'trauben', 'grape', 'grapes', 'виноград', 'erdbeer', 'blaubeer', 'heidelbeer', 'himbeer', 'kiwi', 'obst', 'apple', 'berry', 'berries', 'яблок', 'апельсин', 'мандарин', 'ягод', 'клубник', 'голубик', 'черник', 'малин', 'киви', 'груш', 'фрукт'], satRatio: 0.15, fib: 3.0, micros: M(10, 16, 160, 1, 0.3, 0.1, 0.2, 1.5, 24, 8, 0, 0, 8, 0, 45, 0.06, 0.4, 0, 0.05) },
+            { keywords: ['rotwein', 'weißwein', 'wein', 'wine', 'dornfelder', 'riesling', 'merlot', 'вино'], satRatio: 0, fib: 0, micros: M(12, 8, 127, 4, 0.46, 0.14, 0.2, 0, 1, 0, 0, 0, 0.4, 0, 0, 0.06, 0, 0, 0) },
+            { keywords: ['honig', 'honey', 'мёд', 'мед', 'медов'], satRatio: 0, fib: 0.2, micros: M(2, 6, 52, 4, 0.4, 0.2, 0.8, 1, 2, 0, 0, 0, 0, 0, 0.5, 0.02, 0, 0, 0) },
+            { keywords: ['schokolade', 'chocolate', 'kakao', 'cocoa', 'шоколад', 'какао'], satRatio: 0.60, fib: 7.0, micros: M(150, 80, 550, 30, 6, 2, 4, 5, 10, 10, 10, 0.5, 6, 0.2, 0, 0.05, 0.6, 0, 0.03) },
+            { keywords: ['keks', 'kekse', 'kuchen', 'waffel', 'cookie', 'cookies', 'biscuit', 'gebäck', 'croissant', 'torte', 'печенье', 'торт', 'пирожн', 'вафл', 'конфет', 'круассан'], satRatio: 0.50, fib: 2.5, micros: M(40, 40, 200, 300, 2, 0.8, 3, 3, 10, 30, 25, 0.2, 3, 0.1, 0, 0.05, 1.5, 0, 0.1) },
+            { keywords: ['butter', 'ghee', 'масло сливоч', 'сливочное масло', 'гхи'], satRatio: 0.65, fib: 0, micros: M(2, 24, 24, 11, 0, 0.1, 1.0, 5, 3, 684, 671, 1.5, 7, 0.2, 0, 0, 2.3, 0, 0.3) },
+            { keywords: ['senf', 'mustard', 'горчиц'], satRatio: 0.07, fib: 2.5, micros: M(35, 40, 140, 1000, 1.2, 0.5, 20, 5, 5, 3, 0, 0, 2, 0, 0, 0.05, 0.3, 0, 0.3) },
+            { keywords: ['nori', 'algen', 'wakame', 'seealgen', 'seaweed', 'морская капуста', 'нори', 'ламинария', 'водоросл', 'чука'], satRatio: 0.20, fib: 3.5, micros: M(120, 168, 520, 800, 2.5, 1.2, 5, 300, 140, 120, 0, 0, 5, 0, 12, 0.15, 1.0, 100, 0) },
+            { keywords: ['jodsalz', 'salz', 'salt', 'соль'], satRatio: 0, fib: 0, micros: M(0, 0, 0, 38700, 0, 0, 0, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0) }
+        ];
+
+        // Запасные профили по составу БЖУ (если ни одно слово не совпало)
+        var FALLBACK_PROFILES = {
+            highProtein: { satRatio: 0.35, fib: 0, micros: M(25, 40, 300, 300, 1.5, 2.2, 25, 12, 10, 15, 15, 1, 2, 1.5, 0, 0.45, 0.4, 100, 0.05) },
+            dairy: { satRatio: 0.62, fib: 0, micros: M(12, 120, 140, 50, 0.1, 0.5, 6, 12, 15, 25, 25, 0.1, 1, 0.6, 0.5, 0.08, 0.1, 0, 0.02) },
+            carb: { satRatio: 0.20, fib: 6.0, micros: M(65, 30, 250, 200, 2, 1.8, 18, 5, 38, 0, 0, 0, 2, 0, 0, 0.15, 0.5, 0, 0.05) },
+            fat: { satRatio: 0.16, fib: 8.0, micros: M(180, 100, 500, 10, 3, 2.8, 8, 3, 45, 10, 0, 0, 5, 0, 0, 0.20, 12, 0, 0.5) },
+            plant: { satRatio: 0.20, fib: 2.5, micros: M(18, 20, 240, 20, 0.5, 0.3, 1.0, 2.5, 35, 45, 0, 0, 15, 0, 25, 0.12, 0.5, 0, 0.05) }
+        };
+
+
+        function esc(s) {
+            return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, function(c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+        function num(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
+        function fmt(v, dec) { return +num(v).toFixed(dec); }
+        function isMissing(v) { return v === undefined || v === null || v === '' || (typeof v === 'number' && isNaN(v)); }
+        function isEst(prod, key) { return !!prod && Array.isArray(prod.est) && prod.est.indexOf(key) !== -1; }
+        function firstDefined() {
+            for (var i = 0; i < arguments.length; i++) if (arguments[i] !== undefined) return arguments[i];
+            return undefined;
+        }
+
+        function safeStorageGet(key) {
+            try { return localStorage.getItem(key); } catch (e) { return null; }
+        }
+        function safeStorageSet(key, val) {
+            try { localStorage.setItem(key, val); } catch (e) {}
+        }
+
+        // Сравнение ключевых слов по словам, а не по подстроке
+        function tokenize(s) {
+            return String(s || '').toLowerCase().split(/[^a-z0-9äöüßéèàâçñа-яё]+/).filter(Boolean);
+        }
+        function kwMatch(words, joined, kw) {
+            kw = String(kw).toLowerCase().trim();
+            if (!kw) return false;
+            if (kw.indexOf(' ') !== -1) return (' ' + joined + ' ').indexOf(' ' + kw) !== -1;
+            var isLatin = /[a-zäöüß]/.test(kw);
+            for (var i = 0; i < words.length; i++) {
+                var w = words[i];
+                if (w === kw) return true;
+                if (kw.length <= 3) continue;            // короткие слова (ei, рис, нут) — только точное совпадение
+                if (w.indexOf(kw) === 0) return true;    // начало слова: Rindfleisch, курица
+                if (isLatin) {                           // конец составного слова: Räucherlachs, Heidelbeeren
+                    var pos = w.lastIndexOf(kw);
+                    if (pos > 0 && (w.length - pos - kw.length) <= 1) return true;
+                }
+            }
+            return false;
+        }
+        function matchesAny(text, keywords) {
+            var words = tokenize(text);
+            var joined = words.join(' ');
+            return keywords.some(function(k) { return kwMatch(words, joined, k); });
+        }
+
+        // ---------------------------------------------------------------
+        // BLS 4.0 (Bundeslebensmittelschlüssel, Max Rubner-Institut):
+        // подбор похожего продукта для дополнения микронутриентов
+        // ---------------------------------------------------------------
+        var BLS_STOP = ['und', 'mit', 'ohne', 'in', 'im', 'aus', 'der', 'die', 'das', 'den', 'von', 'vom', 'fur', 'zum', 'zur',
+            'mind', 'max', 'fett', 'tr', 'art', 'nach', 'bis', 'oder', 'auf', 'bio', 'the', 'of', 'with', 'and', 'or', 'from', 'made',
+            'min', 'fat', 'dry', 'matter', 'style', 'type', 'rewe', 'beste', 'wahl', 'edeka', 'gut', 'gunstig', 'ja', 'lidl', 'aldi',
+            'kaufland', 'penny', 'netto', 'milbona', 'original', 'classic', 'klassisch', 'natur', 'naturell', 'premium',
+            'delikatess', 'feinste', 'unser', 'usda', 'lab', 'gute', 'guter', 'echter', 'gramm', 'stuck', 'packung', 'en', 'de', 'fr', 'lebensmittel', 'produkte', 'products', 'foods',
+            'food', 'pflanzliche', 'plant', 'based', 'beverages', 'getranke', 'snacks'];
+        // Синонимы: как называют товар на упаковке → как он называется в BLS
+        var BLS_SYNONYMS = {
+            'nudel': 'teigwar', 'pasta': 'teigwar', 'spaghetti': 'teigwar', 'fusilli': 'teigwar', 'penne': 'teigwar',
+            'makkaroni': 'teigwar', 'farfall': 'teigwar', 'tagliatell': 'teigwar', 'spatzl': 'teigwar',
+            'joghurt': 'yogurt', 'yoghurt': 'joghurt', 'yogurt': 'joghurt', 'skyr': 'skyr',
+            'ketchup': 'tomatenketchup', 'cornflak': 'cornflak', 'haferflock': 'hafer flock', 'porridg': 'hafer flock',
+            'h-milch': 'h-vollmilch', 'weidemilch': 'milch', 'bergbauernmilch': 'milch', 'trinkmilch': 'milch',
+            'frischmilch': 'milch', 'magerquark': 'speisequark magerstuf', 'speisequark': 'speisequark',
+            'peanut': 'erdnuss', 'ghee': 'butterschmalz', 'edelschimmel': 'edelpilzkas',
+            'blauschimmel': 'edelpilzkas', 'cambozola': 'edelpilzkas', 'gorgonzola': 'edelpilzkas', 'roquefort': 'edelpilzkas',
+            'zwiebel': 'speisezwiebel', 'kartoffel': 'kartoffel', 'haferdrink': 'haferdrink', 'hafermilch': 'haferdrink',
+            'sojamilch': 'sojadrink', 'mandelmilch': 'mandeldrink', 'reismilch': 'reisdrink', 'milch': 'vollmilch',
+            'baked': 'bohnen weiss tomatensosse konserve', 'bacon': 'fruhstucksspeck', 'tk': 'tiefgefroren', 'tiefkuhl': 'tiefgefroren'
+        };
+
+        // Особые варианты в BLS (козье молоко, безлактозное, обогащённое…) — подходят, только если это указано у товара
+        var BLS_SPECIAL = [
+            [/ziege/, /ziege|goat|коз/], [/schaf/, /schaf|sheep|овеч|feta/], [/buffel/, /buffel|buffalo|буйвол/],
+            [/stute/, /stute|mare/], [/kamel/, /kamel|camel/], [/esel/, /esel|donkey/],
+            [/kakaobutter/, /kakao|cocoa|какао/], [/sheabutter/, /shea/], [/soja/, /soja|soy|соев|tofu/],
+            [/laktosefrei/, /laktosefrei|lactose|безлактоз/], [/glutenfrei/, /glutenfrei|gluten|глютен/],
+            [/angereichert/, /angereichert|fortified|vitamin|обогащ/], [/su(ss|ß)ungsmittel/, /su(ss|ß)ungsmittel|sweetener|zero|light/]
+        ];
+        var BLS = { loaded: false, loading: false, fields: [], idx: {}, foods: [], idfDe: {}, idfEn: {}, waiters: [] };
+
+        function blsNorm(s) {
+            return String(s || '').toLowerCase()
+                .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss')
+                .replace(/[éèê]/g, 'e').replace(/[àâ]/g, 'a');
+        }
+        function blsStem(w) {
+            if (w.length > 5 && /en$/.test(w)) return w.slice(0, -2);
+            if (w.length > 4 && /[ens]$/.test(w)) return w.slice(0, -1);
+            return w;
+        }
+        function blsTokens(s) {
+            return blsNorm(s).split(/[^a-z0-9а-яё-]+/).map(function(w) { return w.replace(/^-+|-+$/g, ''); })
+                .filter(function(w) { return w.length >= 2 && !/^\d/.test(w) && BLS_STOP.indexOf(w) === -1; })
+                .map(blsStem)
+                .filter(function(w) { return BLS_STOP.indexOf(w) === -1; });
+        }
+
+        function blsPrepare(json) {
+            BLS.fields = json.fields;
+            BLS.idx = {};
+            json.fields.forEach(function(f, i) { BLS.idx[f] = i; });
+            var dfDe = {}, dfEn = {};
+            BLS.foods = json.foods.map(function(r) {
+                var de = blsTokens(r[1]), en = blsTokens(r[2]);
+                // слова из «A/B» и составные через дефис — тоже отдельные токены
+                var uniqDe = de.filter(function(t, i) { return de.indexOf(t) === i; });
+                var uniqEn = en.filter(function(t, i) { return en.indexOf(t) === i; });
+                uniqDe.forEach(function(t) { dfDe[t] = (dfDe[t] || 0) + 1; });
+                uniqEn.forEach(function(t) { dfEn[t] = (dfEn[t] || 0) + 1; });
+                var nm = blsNorm(r[1]);
+                var special = BLS_SPECIAL.filter(function(x) { return x[0].test(nm); }).map(function(x) { return x[1]; });
+                return { code: r[0], name: r[1], nameEn: r[2], v: r[3], de: uniqDe, en: uniqEn, special: special };
+            });
+            var N = BLS.foods.length;
+            BLS.idfDe = {}; BLS.idfEn = {};
+            Object.keys(dfDe).forEach(function(t) { BLS.idfDe[t] = Math.log(1 + N / dfDe[t]); });
+            Object.keys(dfEn).forEach(function(t) { BLS.idfEn[t] = Math.log(1 + N / dfEn[t]); });
+            BLS.loaded = true;
+        }
+
+        function blsVal(food, key) {
+            var i = BLS.idx[key];
+            if (i === undefined) return undefined;
+            var v = food.v[i];
+            return (v === null || v === undefined) ? undefined : v;
+        }
+
+        // Совпадение слова из названия товара (q) со словом из BLS (b)
+        function blsTokenMatch(q, b) {
+            if (q === b) return 1;
+            // соединительная «s» или опечатка в одну букву: Heringfilet ~ Heringsfilet, Knüsper ~ Knusper
+            if (Math.abs(q.length - b.length) === 1 && Math.min(q.length, b.length) >= 5) {
+                var lo = q.length > b.length ? b : q, hi = q.length > b.length ? q : b;
+                for (var k = 0; k < hi.length; k++) {
+                    if (hi.slice(0, k) + hi.slice(k + 1) === lo) return 0.9;
+                }
+            }
+            if (b.length >= 4 && q.length > b.length) {
+                if (q.slice(-b.length) === b) return 0.85;          // Naturjoghurt → Joghurt
+                if (q.indexOf(b) === 0) return 0.7;                  // Haferflocken → Hafer
+            }
+            if (q.length >= 4 && b.length > q.length) {
+                if (b.slice(-q.length) === q) return 0.75;          // Quark → Speisequark
+                if (b.indexOf(q) === 0) return 0.65;                 // Joghurt → Joghurtalternative
+                if (q.length >= 5 && b.indexOf(q) > 0) return 0.5;   // Müsli → Knuspermüslimischung
+            }
+            // одинаковое основное слово в конце составных слов: Steinofenbrot ~ Weizenmischbrot
+            var n = 0;
+            while (n < q.length && n < b.length && q[q.length - 1 - n] === b[b.length - 1 - n]) n++;
+            if (n >= 4 && n >= 0.4 * Math.min(q.length, b.length)) return 0.45;
+            // общее начало слова: Schoko ~ Schokolade, Hering ~ Heringsrogen
+            var m = 0;
+            while (m < q.length && m < b.length && q[m] === b[m]) m++;
+            if (m >= 5 && m >= 0.5 * Math.min(q.length, b.length)) return 0.5;
+            return 0;
+        }
+
+        // query: { name, extra (категории, перевод), p, f, c, fib, kcal }
+        // Токены запроса. g — номер исходного слова: формы и синонимы одного слова засчитываются только один раз
+        function blsBuildQuery(q) {
+            var toks = [], g = 0;
+            function add(text, weight) {
+                blsTokens(text).forEach(function(t) {
+                    g++;
+                    toks.push({ t: t, w: weight, g: g });
+                    if (t.length > 7 && /(er|es|em)$/.test(t)) toks.push({ t: t.slice(0, -2), w: weight, g: g });
+                    Object.keys(BLS_SYNONYMS).forEach(function(k) {
+                        if (t === k || blsTokenMatch(t, k) >= 0.85) {
+                            blsTokens(BLS_SYNONYMS[k]).forEach(function(s, si) {
+                                // синоним из нескольких слов: каждое слово — отдельное понятие
+                                toks.push({ t: s, w: weight * 0.9, g: si === 0 ? g : 'syn' + g + '_' + si });
+                            });
+                        }
+                    });
+                });
+            }
+            add(q.name, 1);
+            add(q.extra || '', 0.6);
+            add(q.translated || '', 0.8);
+            return toks;
+        }
+
+        function blsTextScore(qt, tokens, idf) {
+            if (!tokens.length) return 0;
+            var pairs = [];
+            for (var i = 0; i < tokens.length; i++) {
+                for (var j = 0; j < qt.length; j++) {
+                    var m = blsTokenMatch(qt[j].t, tokens[i]) * qt[j].w;
+                    if (m > 0) pairs.push({ i: i, j: j, m: m });
+                }
+            }
+            if (!pairs.length) return 0;
+            pairs.sort(function(a, b) { return b.m - a.m; });
+            var usedQ = {}, usedT = {}, cover = {};
+            pairs.forEach(function(pr) {
+                // одно и то же слово запроса засчитывается один раз (и синонимы этого слова тоже)
+                var qKey = qt[pr.j].g;
+                if (usedQ[qKey] || usedT[pr.i + ':' + pr.j]) return;
+                var cur = cover[pr.i] || 0;
+                if (cur >= 1) return;
+                cover[pr.i] = Math.min(1, cur + pr.m);
+                usedQ[qKey] = true;
+            });
+            var matched = 0, total = 0;
+            tokens.forEach(function(b, i) {
+                var w = idf[b] || 1;
+                matched += w * (cover[i] || 0);
+                total += w;
+            });
+            if (matched === 0) return 0;
+            var head = cover[0] || 0;
+            return matched * (0.35 + 0.65 * matched / total) * (head > 0 ? 1 + 0.4 * head : 0.75);
+        }
+
+        // Близость по БЖУ: относительная разница по каждому макронутриенту (0,3 г жира важны у творога, но не у орехов)
+        function blsMacroSim(q, food) {
+            if (isMissing(q.p) && isMissing(q.f) && isMissing(q.c)) return null;
+            // все нули (у товара нет данных о пищевой ценности) — сравнивать не с чем
+            if (num(q.p) + num(q.f) + num(q.c) === 0 && !num(q.kcal)) return null;
+            function rel(a, b, w) {
+                a = num(a); b = num(b);
+                return w * Math.abs(a - b) / (2 + 0.15 * Math.max(a, b));
+            }
+            var d = rel(q.p, blsVal(food, 'p'), 1) + rel(q.f, blsVal(food, 'f'), 1) + rel(q.c, blsVal(food, 'c'), 1);
+            if (!isMissing(q.fib) && blsVal(food, 'fib') !== undefined) d += rel(q.fib, blsVal(food, 'fib'), 0.5);
+            var r = d / 1.5;
+            return 1 / (1 + r * r);
+        }
+
+        // Возвращает до `limit` кандидатов [{ food, score, text, sim }]
+        function blsFindCandidates(q, limit) {
+            if (!BLS.loaded) return [];
+            var qt = blsBuildQuery(q);
+            if (!qt.length) return [];
+            var qText = blsNorm((q.name || '') + ' ' + (q.extra || '') + ' ' + (q.translated || ''));
+            var res = [], maxText = 0;
+            for (var i = 0; i < BLS.foods.length; i++) {
+                var food = BLS.foods[i];
+                var text = Math.max(blsTextScore(qt, food.de, BLS.idfDe), 0.9 * blsTextScore(qt, food.en, BLS.idfEn));
+                if (text <= 0) continue;
+                if (/^[XY]/.test(food.code)) text *= 0.85;   // готовые блюда/рецепты — реже нужны для покупных товаров
+                // козье/овечье и т.п. — только если это есть в названии товара
+                for (var s = 0; s < food.special.length; s++) if (!food.special[s].test(qText)) text *= 0.6;
+                if (text > maxText) maxText = text;
+                res.push({ food: food, text: text });
+            }
+            res.forEach(function(r) {
+                r.sim = blsMacroSim(q, r.food);
+                var t = Math.pow(r.text / maxText, 0.7);
+                r.score = t * (r.sim === null ? 1 : 0.1 + 0.9 * r.sim);
+            });
+            res.sort(function(a, b) { return b.score - a.score; });
+            return res.slice(0, limit || 6);
+        }
+
+        // Уверенное совпадение → применяем автоматически; иначе только предлагаем список
+        function blsIsConfident(c) {
+            return !!c && c.text >= 2.5 && (c.sim === null || c.sim >= 0.4);
+        }
+
+        // Значения BLS в формате калькулятора (на 100 г); undefined = в BLS нет данных
+        function blsToProductValues(food) {
+            var out = {};
+            ['kcal', 'p', 'f', 'c', 'fib', 'sat'].forEach(function(k) { out[k] = blsVal(food, k); });
+            var mufa = blsVal(food, 'mufa'), pufa = blsVal(food, 'pufa');
+            out.unsat = (mufa === undefined && pufa === undefined) ? undefined : +(num(mufa) + num(pufa)).toFixed(2);
+            ['mg', 'ca', 'k', 'na', 'fe', 'zn', 'iod', 'fol', 'vitA', 'ret', 'vitD', 'vitK', 'vitB12', 'vitC', 'vitB6', 'vitE', 'ala'].forEach(function(k) {
+                out[k] = blsVal(food, k);
+            });
+            var epa = blsVal(food, 'epa'), dha = blsVal(food, 'dha');
+            out.epadha = (epa === undefined && dha === undefined) ? undefined : +(num(epa) + num(dha)).toFixed(1);
+            // Селена в BLS 4.0 нет → out.se остаётся undefined (будет оценён по профилю)
+            return out;
+        }
+
+        // ---------------------------------------------------------------
+        // Оценка отсутствующих значений (помечаются в prod.est)
+        // Заполняются ТОЛЬКО отсутствующие поля; явный 0 никогда не перезаписывается.
+        // ---------------------------------------------------------------
+        function findProfile(prod, extraSearchText) {
+            var text = (prod.name || '') + ' ' + (extraSearchText || '');
+            for (var i = 0; i < SCIENTIFIC_MICRO_PROFILES.length; i++) {
+                if (matchesAny(text, SCIENTIFIC_MICRO_PROFILES[i].keywords)) return SCIENTIFIC_MICRO_PROFILES[i];
+            }
+            var p = num(prod.p), f = num(prod.f), c = num(prod.c);
+            if (p >= 15 && c < 5) return FALLBACK_PROFILES.highProtein;
+            if (p >= 8 && c >= 2 && c <= 15 && f <= 10) return FALLBACK_PROFILES.dairy;
+            if (c >= 40) return FALLBACK_PROFILES.carb;
+            if (f >= 35) return FALLBACK_PROFILES.fat;
+            return FALLBACK_PROFILES.plant;
+        }
+
+        function enrichMicronutrients(prod, extraSearchText) {
+            var est = Array.isArray(prod.est) ? prod.est.slice() : [];
+            function mark(k) { if (est.indexOf(k) === -1) est.push(k); }
+
+            var needsProfile = isMissing(prod.sat) || isMissing(prod.fib) ||
+                MICRO_CONFIG.some(function(m) { return isMissing(prod[m.key]); });
+            if (!needsProfile) { prod.est = est; return; }
+
+            var profile = findProfile(prod, extraSearchText);
+            var f = num(prod.f);
+
+            // Сухой или варёный продукт? Масштабируем оценку по белкам+углеводам относительно эталона профиля.
+            var scale = 1;
+            if (profile.refPC) {
+                var pc = num(prod.p) + num(prod.c);
+                if (pc > 0) scale = Math.min(4, Math.max(0.2, pc / profile.refPC));
+            }
+
+            if (isMissing(prod.sat)) {
+                prod.sat = f > 0 ? +(f * (profile.satRatio || 0.22)).toFixed(1) : 0;
+                if (f > 0) mark('sat');
+            }
+            if (isMissing(prod.unsat)) {
+                prod.unsat = Math.max(0, +(f - num(prod.sat)).toFixed(1));
+                if (f > 0 && est.indexOf('sat') !== -1) mark('unsat');
+            }
+            if (isMissing(prod.fib)) {
+                prod.fib = +((profile.fib || 0) * scale).toFixed(1);
+                mark('fib');
+            }
+            MICRO_CONFIG.forEach(function(m) {
+                if (isMissing(prod[m.key])) {
+                    prod[m.key] = +((profile.micros[m.key] || 0) * scale).toFixed(Math.max(2, m.dec));
+                    mark(m.key);
+                }
+            });
+            prod.est = est;
+        }
+
+        
+
+
+        // =====================================================================
+        // Nährwert-Scanner
+        // =====================================================================
+        var APP_VERSION = '1.0 · 2026-11-20';
+        var ZXING_URLS = [
+            'https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js',
+            'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js'
+        ];
+        var OFF_FIELDS = 'code,product_name,product_name_de,brands,quantity,image_front_small_url,image_front_url,categories,categories_tags,nutriments';
+        var HISTORY_MAX = 50;
+
+        // Deutsche Namen und Einheiten für die Nährstoffe des Ernährungsrechners
+        var DE = {
+            mg: 'Magnesium', ca: 'Calcium', k: 'Kalium', na: 'Natrium', fe: 'Eisen', zn: 'Zink', se: 'Selen', iod: 'Jod',
+            fol: 'Folat (B9)', vitA: 'Vitamin A', vitD: 'Vitamin D', vitK: 'Vitamin K', vitB12: 'Vitamin B12', vitC: 'Vitamin C',
+            vitB6: 'Vitamin B6', vitE: 'Vitamin E', ala: 'Omega-3 ALA', epadha: 'Omega-3 EPA + DHA'
+        };
+        var UNIT_DE = { 'мг': 'mg', 'мкг': 'µg', 'г': 'g' };
+        var GROUPS = [
+            { title: 'Mineralstoffe', keys: ['mg', 'ca', 'k', 'na', 'fe', 'zn', 'se', 'iod'] },
+            { title: 'Vitamine', keys: ['fol', 'vitA', 'vitD', 'vitK', 'vitB12', 'vitC', 'vitB6', 'vitE'] },
+            { title: 'Omega-3-Fettsäuren', keys: ['ala', 'epadha'] }
+        ];
+
+        var app = {
+            screen: 'home', prev: 'home',
+            current: null,          // { raw, food (BLS) | null, blsMode: 'auto'|'manual'|'none', cands }
+            grams: 100, mode: '100',
+            histExpanded: false,
+            settings: { sex: 'm', age: 40, weight: 75, height: 178, activity: '1.2735' }
+        };
+
+        // ---------------------------------------------------------------
+        // Hilfen
+        // ---------------------------------------------------------------
+        function deNum(v, dec) {
+            if (isMissing(v)) return '–';
+            return Number(v).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: dec === undefined ? 1 : dec });
+        }
+        function microDec(m, v) {
+            var a = Math.abs(num(v));
+            if (a === 0) return 0;
+            if (a < 1) return Math.max(2, m.dec);
+            if (a < 10) return Math.max(1, m.dec);
+            return 0;
+        }
+        function pctText(p) {
+            if (p === null) return '';
+            if (p > 0 && p < 1) return '< 1 %';
+            return Math.round(p) + ' %';
+        }
+        function loadJson(key, fallback) {
+            try { var v = JSON.parse(safeStorageGet(key)); return v === null || v === undefined ? fallback : v; } catch (e) { return fallback; }
+        }
+        function saveJson(key, val) { safeStorageSet(key, JSON.stringify(val)); }
+        function fetchWithTimeout(url, ms) {
+            var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            var t = setTimeout(function() { if (ctrl) ctrl.abort(); }, ms);
+            return fetch(url, ctrl ? { signal: ctrl.signal } : {}).finally(function() { clearTimeout(t); });
+        }
+
+        // ---------------------------------------------------------------
+        // Navigation (mit Zurück-Wischgeste)
+        // ---------------------------------------------------------------
+        function showScreen(name) {
+            if (app.screen === 'scan' && name !== 'scan') stopCamera();
+            ['home', 'scan', 'result', 'settings'].forEach(function(s) {
+                document.getElementById('screen-' + s).classList.toggle('active', s === name);
+            });
+            if (name !== app.screen) app.prev = app.screen;
+            app.screen = name;
+            document.body.style.background = name === 'scan' ? '#0E1411' : '';
+            window.scrollTo(0, 0);
+            if (name === 'home') renderHistory();
+            if (name === 'settings') renderSettings();
+        }
+        function go(name) {
+            if (name === app.screen) return;
+            try { history.pushState({ s: name }, '', '#' + name); } catch (e) {}
+            showScreen(name);
+        }
+        function goBack() {
+            if (history.state && history.state.s) history.back();
+            else showScreen(app.prev && app.prev !== 'scan' ? app.prev : 'home');
+        }
+        window.addEventListener('popstate', function(e) {
+            var s = (e.state && e.state.s) || 'home';
+            if (s === 'result' && !app.current) s = 'home';
+            if (s === 'scan') s = 'home';       // nie automatisch in die Kamera zurück
+            showScreen(s);
+        });
+
+        // ---------------------------------------------------------------
+        // Tagesbedarf
+        // ---------------------------------------------------------------
+        function loadSettings() {
+            var s = loadJson('scanner.settings', null);
+            if (s) app.settings = Object.assign(app.settings, s);
+        }
+        function saveSettings() {
+            var s = app.settings;
+            s.age = parseFloat(document.getElementById('set-age').value) || s.age;
+            s.weight = parseFloat(document.getElementById('set-weight').value) || s.weight;
+            s.height = parseFloat(document.getElementById('set-height').value) || s.height;
+            s.activity = document.getElementById('set-activity').value;
+            saveJson('scanner.settings', s);
+            document.getElementById('home-status').innerHTML = '';
+            renderNeeds();
+            if (app.current) renderResult();
+        }
+        function setSex(sex) {
+            app.settings.sex = sex;
+            saveJson('scanner.settings', app.settings);
+            document.getElementById('home-status').innerHTML = '';
+            renderSettings();
+            if (app.current) renderResult();
+        }
+        function renderSettings() {
+            var s = app.settings;
+            document.getElementById('sex-m').classList.toggle('on', s.sex === 'm');
+            document.getElementById('sex-f').classList.toggle('on', s.sex === 'f');
+            document.getElementById('sex-m').setAttribute('aria-pressed', s.sex === 'm');
+            document.getElementById('sex-f').setAttribute('aria-pressed', s.sex === 'f');
+            var ids = { 'set-age': s.age, 'set-weight': s.weight, 'set-height': s.height };
+            Object.keys(ids).forEach(function(id) {
+                var el = document.getElementById(id);
+                if (document.activeElement !== el) el.value = ids[id];
+            });
+            document.getElementById('set-activity').value = s.activity;
+            document.getElementById('app-version').innerText = 'Version ' + APP_VERSION + ' · Daten: Open Food Facts, BLS 4.0 (Max Rubner-Institut)';
+            renderNeeds();
+        }
+
+        // Ziele pro Tag. limit: true = Höchstwert (Natrium, Salz, gesättigte Fette, Zucker)
+        function getTargets() {
+            var s = app.settings, f = s.sex === 'f';
+            var bmr = 10 * num(s.weight) + 6.25 * num(s.height) - 5 * num(s.age) + (f ? -161 : 5);
+            var kcal = Math.round(bmr * (parseFloat(s.activity) || 1.2735));
+            var fat = Math.round(kcal * 0.3214 / 9);
+            return {
+                kcal: kcal,
+                p: Math.round(kcal * 0.2667 / 4), f: fat, c: Math.round(kcal * 0.4119 / 4), fib: 30,
+                sat: Math.round(fat * 16 / 75), sugar: Math.round(kcal * 0.10 / 4), salt: 6,
+                mg: f ? 300 : 350, ca: 1000, k: 4000, na: 2400, fe: f ? (num(s.age) >= 51 ? 14 : 16) : 11, zn: f ? 10 : 16,
+                se: f ? 60 : 70, iod: 200, fol: 300, vitA: f ? 700 : 850, vitD: 20, vitK: f ? 60 : 70, vitB12: 4.0,
+                vitC: f ? 95 : 110, vitB6: f ? 1.4 : 1.6, vitE: f ? 12 : 14, epadha: 250,
+                ala: Math.round(kcal * 0.005 / 9 * 10) / 10
+            };
+        }
+        var LIMIT_KEYS = { na: true, sat: true, sugar: true, salt: true };
+
+        function renderNeeds() {
+            var t = getTargets();
+            var rows = [
+                ['Energie', deNum(t.kcal, 0) + ' kcal'], ['Eiweiß', t.p + ' g'], ['Fett', t.f + ' g'],
+                ['Kohlenhydrate', t.c + ' g'], ['Ballaststoffe', '≥ ' + t.fib + ' g'],
+                ['Gesättigte Fette', 'max. ' + t.sat + ' g'], ['Zucker', 'max. ' + t.sugar + ' g'], ['Salz', 'max. ' + t.salt + ' g'],
+                ['Magnesium', t.mg + ' mg'], ['Eisen', t.fe + ' mg'], ['Zink', t.zn + ' mg'], ['Vitamin C', t.vitC + ' mg'], ['Vitamin D', t.vitD + ' µg']
+            ];
+            document.getElementById('needs-list').innerHTML = rows.map(function(r) {
+                return '<div class="need-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>';
+            }).join('');
+        }
+
+        // ---------------------------------------------------------------
+        // BLS laden (Datei liegt neben der App)
+        // ---------------------------------------------------------------
+        var blsPromise = null;
+        function ensureBls() {
+            if (BLS.loaded) return Promise.resolve(true);
+            if (!blsPromise) {
+                blsPromise = fetchWithTimeout('bls_4_0_compact.json', 30000)
+                    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                    .then(function(j) { blsPrepare(j); return true; })
+                    .catch(function(e) { blsPromise = null; console.warn('BLS', e); return false; });
+            }
+            return blsPromise;
+        }
+
+        // ---------------------------------------------------------------
+        // Open Food Facts
+        // ---------------------------------------------------------------
+        function offValue(n, keys, targetUnit, dec) {
+            var found = false, sumG = 0;
+            (keys || []).forEach(function(key) {
+                var v = parseFloat(n[key + '_100g']);
+                if (!isNaN(v) && v >= 0) { found = true; sumG += v; }
+            });
+            if (!found) return undefined;
+            var factor = targetUnit === 'mg' ? 1e3 : (targetUnit === 'ug' ? 1e6 : 1);
+            return +(sumG * factor).toFixed(Math.max(1, dec || 0));
+        }
+        function numOrU(v, dec) { var x = parseFloat(v); return isNaN(x) ? undefined : +x.toFixed(dec); }
+
+        // Rohdaten vom Etikett (pro 100 g); fehlend = undefined
+        function offToRaw(prod, code) {
+            var n = prod.nutriments || {};
+            var kcal = parseFloat(n['energy-kcal_100g']);
+            if (isNaN(kcal) && !isNaN(parseFloat(n['energy_100g']))) kcal = parseFloat(n['energy_100g']) / 4.184;
+            var raw = {
+                code: prod.code || code,
+                name: (prod.product_name_de || prod.product_name || '').trim() || 'Unbekanntes Produkt',
+                brand: prod.brands ? prod.brands.split(',')[0].trim() : '',
+                quantity: prod.quantity || '',
+                image: prod.image_front_small_url || prod.image_front_url || '',
+                categories: ((prod.categories || '') + ' ' + (Array.isArray(prod.categories_tags) ? prod.categories_tags.map(function(t) {
+                    return String(t).replace(/^[a-z]{2}:/, '').replace(/-/g, ' ');
+                }).join(' ') : '')).trim(),
+                kcal: isNaN(kcal) ? undefined : Math.round(kcal),
+                p: numOrU(n.proteins_100g, 1), f: numOrU(n.fat_100g, 1), c: numOrU(n.carbohydrates_100g, 1),
+                sat: numOrU(n['saturated-fat_100g'], 1), sugar: numOrU(n.sugars_100g, 1), fib: numOrU(n.fiber_100g, 1),
+                salt: numOrU(n.salt_100g, 2)
+            };
+            MICRO_CONFIG.forEach(function(m) {
+                var v = offValue(n, m.off, m.offUnit, m.dec);
+                if (v === undefined && m.offAlt) v = offValue(n, m.offAlt, m.offUnit, m.dec);
+                raw[m.key] = v;
+            });
+            // Natrium ↔ Salz
+            if (isMissing(raw.na) && !isMissing(raw.salt)) raw.na = Math.round(raw.salt / 2.5 * 1000);
+            if (isMissing(raw.salt) && !isMissing(raw.na)) raw.salt = +(raw.na * 2.5 / 1000).toFixed(2);
+            if (isMissing(raw.kcal) && !isMissing(raw.p) && !isMissing(raw.f) && !isMissing(raw.c)) raw.kcal = Math.round(raw.p * 4 + raw.f * 9 + raw.c * 4);
+            return raw;
+        }
+
+        // { raw } | { notFound: true } | { error: 'Text' }
+        async function lookupOff(code) {
+            try {
+                var r = await fetchWithTimeout('https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(code) + '.json?fields=' + OFF_FIELDS, 15000);
+                if (r.status === 404) return { notFound: true };
+                if (!r.ok) return { error: 'Open Food Facts antwortet nicht (Fehler ' + r.status + '). Bitte gleich noch einmal versuchen.' };
+                var d = await r.json();
+                if (d.status !== 1 || !d.product) return { notFound: true };
+                var raw = offToRaw(d.product, code);
+                var hasMacros = ['kcal', 'p', 'f', 'c'].some(function(k) { return !isMissing(raw[k]); });
+                if (!hasMacros) return { notFound: true, partial: raw };
+                return { raw: raw };
+            } catch (e) {
+                return { error: 'Keine Verbindung zu Open Food Facts. Bist du online?' };
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Werte zusammenführen: Etikett > BLS > grobe Schätzung
+        // ---------------------------------------------------------------
+        function buildValues(raw, food) {
+            var v = {}, src = {};
+            ['kcal', 'p', 'f', 'c', 'sat', 'sugar', 'fib', 'salt'].forEach(function(k) {
+                if (!isMissing(raw[k])) { v[k] = raw[k]; src[k] = 'label'; }
+            });
+            MICRO_CONFIG.forEach(function(m) {
+                if (!isMissing(raw[m.key])) { v[m.key] = raw[m.key]; src[m.key] = 'label'; }
+            });
+            if (food) {
+                var b = blsToProductValues(food);
+                ['kcal', 'p', 'f', 'c', 'fib'].forEach(function(k) {
+                    if (isMissing(v[k]) && b[k] !== undefined) { v[k] = b[k]; src[k] = 'bls'; }
+                });
+                if (isMissing(v.sat) && b.sat !== undefined) {
+                    var fb = num(b.f), fp = num(v.f);
+                    v.sat = fb > 0 ? +Math.min(fp, b.sat / fb * fp).toFixed(1) : b.sat;
+                    src.sat = 'bls';
+                }
+                MICRO_CONFIG.forEach(function(m) {
+                    if (isMissing(v[m.key]) && b[m.key] !== undefined) { v[m.key] = b[m.key]; src[m.key] = 'bls'; }
+                });
+                if (isMissing(v.salt) && !isMissing(v.na)) { v.salt = +(v.na * 2.5 / 1000).toFixed(2); src.salt = src.na; }
+            }
+            // Rest (z. B. Selen, das im BLS fehlt) grob nach Produkttyp schätzen
+            var tmp = { name: raw.name, p: v.p, f: v.f, c: v.c, sat: v.sat, fib: v.fib, est: [] };
+            MICRO_CONFIG.forEach(function(m) { tmp[m.key] = v[m.key]; });
+            enrichMicronutrients(tmp, raw.categories || '');
+            MICRO_CONFIG.forEach(function(m) {
+                if (isMissing(v[m.key]) && !isMissing(tmp[m.key])) { v[m.key] = tmp[m.key]; src[m.key] = 'est'; }
+            });
+            if (isMissing(v.sat) && !isMissing(tmp.sat) && num(v.f) > 0) { v.sat = tmp.sat; src.sat = 'est'; }
+            if (isMissing(v.fib) && !isMissing(tmp.fib)) { v.fib = tmp.fib; src.fib = 'est'; }
+            return { v: v, src: src };
+        }
+
+        // ---------------------------------------------------------------
+        // Produkt öffnen
+        // ---------------------------------------------------------------
+        function showLoading(text) {
+            document.getElementById('result-body').innerHTML =
+                '<div class="card notice" style="align-items: center; text-align: center"><div class="spinner"></div><span style="font-size: 17px; font-weight: 600">' + esc(text) + '</span></div>';
+            go('result');
+        }
+
+        async function openBarcode(code) {
+            code = String(code || '').replace(/\D+/g, '');
+            if (!code) return;
+            var cached = getHistory().find(function(h) { return h.raw && h.raw.code === code; });
+            showLoading('Suche Produkt ' + code + ' …');
+            var res = cached ? { raw: cached.raw } : await lookupOff(code);
+            if (res.error) { renderMessage('Keine Antwort', res.error, code, true); return; }
+            if (res.notFound) {
+                renderMessage('Produkt nicht gefunden', 'Der Strichcode ' + code + ' ist bei Open Food Facts nicht eingetragen' +
+                    (res.partial ? ' oder hat keine Nährwerte' : '') + '. Du kannst stattdessen ein ähnliches Lebensmittel im BLS suchen.', code, false);
+                return;
+            }
+            await openRaw(res.raw, cached ? cached.bls : undefined);
+        }
+
+        // blsChoice: undefined = automatisch, null = ohne BLS, 'CODE' = gewählter BLS-Eintrag
+        async function openRaw(raw, blsChoice) {
+            var ok = await ensureBls();
+            var cands = [], food = null, mode = 'auto';
+            if (ok) {
+                cands = blsFindCandidates({ name: raw.name, extra: raw.categories, p: raw.p, f: raw.f, c: raw.c, fib: raw.fib, kcal: raw.kcal }, 6);
+                if (blsChoice === null) { mode = 'none'; }
+                else if (blsChoice) {
+                    food = BLS.foods.find(function(x) { return x.code === blsChoice; }) || null;
+                    mode = food ? 'manual' : 'auto';
+                }
+                if (mode === 'auto') food = blsIsConfident(cands[0]) ? cands[0].food : null;
+            }
+            app.current = { raw: raw, food: food, mode: mode, cands: cands, blsOk: ok, panel: false };
+            app.mode = '100'; app.grams = 100;
+            addToHistory();
+            renderResult();
+            go('result');
+        }
+
+        // Nur BLS (Produkt ohne Strichcode-Daten)
+        function openBlsOnly(code) {
+            var food = BLS.foods.find(function(x) { return x.code === code; });
+            if (!food) return;
+            var b = blsToProductValues(food);
+            var raw = { code: null, name: food.name, brand: '', quantity: '', image: '', categories: '', blsOnly: true };
+            app.current = { raw: raw, food: food, mode: 'manual', cands: [], blsOk: true, panel: false, blsOnly: true };
+            app.mode = '100'; app.grams = 100;
+            renderResult();
+            go('result');
+        }
+
+        function renderMessage(title, text, code, retry) {
+            var html = '<div class="card notice"><h2>' + esc(title) + '</h2><span class="mute" style="font-size: 16px">' + esc(text) + '</span>';
+            if (retry) html += '<button type="button" class="pbtn" onclick="openBarcode(\'' + esc(code) + '\')">Noch einmal versuchen</button>';
+            html += '</div>';
+            html += '<div class="card bls-panel"><h3>Im BLS suchen</h3><span class="small mute">Deutsche Lebensmittel-Datenbank – Begriff auf Deutsch, z. B. „Haferflocken“, „Joghurt“, „Vollkornbrot“.</span>' +
+                '<div class="search-row"><input class="inp" id="bls-only-input" type="search" placeholder="Lebensmittel" onkeydown="if(event.key===\'Enter\') blsOnlySearch()"><button type="button" class="pbtn" onclick="blsOnlySearch()">Suchen</button></div>' +
+                '<div id="bls-only-results" style="display: flex; flex-direction: column; gap: 8px"></div></div>';
+            if (code) html += '<p class="small mute" style="margin: 0">Tipp: Über die App „Open Food Facts“ kannst du das Produkt selbst eintragen – danach findet es auch dieser Scanner.</p>';
+            document.getElementById('result-body').innerHTML = html;
+            go('result');
+        }
+
+        async function blsOnlySearch() {
+            var term = document.getElementById('bls-only-input').value.trim();
+            var box = document.getElementById('bls-only-results');
+            if (!term) return;
+            box.innerHTML = '<span class="small mute">Suche …</span>';
+            if (!(await ensureBls())) { box.innerHTML = '<span class="small mute">BLS-Datei konnte nicht geladen werden.</span>'; return; }
+            var c = blsFindCandidates({ name: term }, 10);
+            box.innerHTML = c.length ? c.map(function(x) {
+                return '<button type="button" class="cand" onclick="openBlsOnly(\'' + x.food.code + '\')"><span class="n">' + esc(x.food.name) + '</span><span class="d">' +
+                    deNum(blsVal(x.food, 'kcal'), 0) + ' kcal · Eiweiß ' + deNum(blsVal(x.food, 'p')) + ' g · Fett ' + deNum(blsVal(x.food, 'f')) + ' g · KH ' + deNum(blsVal(x.food, 'c')) + ' g</span></button>';
+            }).join('') : '<span class="small mute">Nichts gefunden. BLS-Namen sind deutsch und meist in der Einzahl (Tomate, Erdnuss).</span>';
+        }
+
+        // ---------------------------------------------------------------
+        // Ergebnis anzeigen
+        // ---------------------------------------------------------------
+        function chipHtml(src) {
+            if (src === 'bls') return '<span class="chip bls">BLS</span>';
+            if (src === 'est') return '<span class="chip est">≈ Schätzung</span>';
+            return '';
+        }
+        function barHtml(p, limit, cls) {
+            var w = p === null ? 0 : Math.max(0, Math.min(100, p));
+            return '<div class="bar ' + (cls || '') + (limit ? ' lim' : '') + '"><div style="width: ' + w + '%"></div></div>';
+        }
+
+        function renderResult() {
+            var cur = app.current;
+            if (!cur) return;
+            var raw = cur.raw;
+            var built = buildValues(cur.blsOnly ? {} : raw, cur.food);
+            if (cur.blsOnly) { Object.keys(built.src).forEach(function(k) { if (built.src[k] !== 'est') built.src[k] = 'bls'; }); }
+            var v = built.v, src = built.src, T = getTargets();
+            var factor = app.grams / 100;
+            var amountTxt = deNum(app.grams, 0) + ' g';
+            function pctOf(key, val) { return isMissing(val) || !T[key] ? null : val * factor / T[key] * 100; }
+
+            var h = '';
+            // Produktkarte
+            h += '<div class="card prod">' + (raw.image ? '<img src="' + esc(raw.image) + '" alt="" loading="lazy">' :
+                '<div class="ph" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#56615B" stroke-width="1.6" stroke-linecap="round"><path d="M7 8v8M10 8v8M13 8v8M17 8v8"></path></svg></div>') +
+                '<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px"><h1>' + esc(raw.name) + '</h1>' +
+                '<span class="mute" style="font-size: 15px">' + esc([raw.brand, raw.quantity].filter(Boolean).join(' · ') || (cur.blsOnly ? 'Allgemeines Lebensmittel (BLS)' : '')) + '</span>' +
+                (raw.code ? '<span class="small mute">EAN ' + esc(raw.code) + '</span>' : '') + '</div></div>';
+
+            // Herkunft der Daten
+            var nEst = Object.keys(src).filter(function(k) { return src[k] === 'est'; }).length;
+            var srcCls = (!cur.food && !cur.blsOnly) ? 'src warn' : 'src';
+            h += '<div class="' + srcCls + '">';
+            if (cur.blsOnly) {
+                h += '<span><strong>Alle Werte:</strong> BLS „' + esc(cur.food.name) + '“ (Durchschnittswerte, kein bestimmtes Produkt)</span>';
+            } else {
+                h += '<span><strong>Kalorien &amp; Makros:</strong> Etikett (Open Food Facts)<br><strong>Vitamine &amp; Mineralstoffe:</strong> ' +
+                    (cur.food ? 'ergänzt aus BLS „' + esc(cur.food.name) + '“' :
+                        (!cur.blsOk ? 'BLS-Datei nicht geladen – nur grob geschätzt' :
+                            (cur.mode === 'none' ? 'ohne BLS – nur grob geschätzt' : 'kein sicherer BLS-Treffer – nur grob geschätzt. Bitte passendes Lebensmittel wählen.'))) + '</span>';
+                if (cur.blsOk) h += '<button type="button" class="link-btn" style="align-self: flex-start; text-decoration: underline" onclick="toggleBlsPanel()">' +
+                    (cur.panel ? 'Auswahl schließen' : (cur.food ? 'Anderes BLS-Lebensmittel wählen' : 'BLS-Lebensmittel wählen')) + '</button>';
+            }
+            h += '</div>';
+
+            if (cur.panel && !cur.blsOnly) h += blsPanelHtml();
+
+            // Menge
+            h += '<div class="seg" role="group" aria-label="Menge">' +
+                '<button type="button" class="' + (app.mode === '100' ? 'on' : '') + '" onclick="setMode(\'100\')">100 g</button>' +
+                '<button type="button" class="' + (app.mode === 'own' ? 'on' : '') + '" onclick="setMode(\'own\')">Eigene Menge</button></div>';
+            if (app.mode === 'own') {
+                h += '<div class="grams"><label for="grams-input" class="mute" style="font-weight: 600">Menge</label>' +
+                    '<div class="numbox" style="flex: 1"><input id="grams-input" type="number" inputmode="decimal" min="1" max="5000" value="' + app.grams + '" oninput="setGrams(this.value)"><span>g</span></div></div>';
+            }
+
+            // Energie
+            var pk = pctOf('kcal', v.kcal);
+            h += '<div class="card energy"><span class="mute" style="font-size: 15px; font-weight: 600">Energie pro ' + amountTxt + ' ' + chipHtml(src.kcal) + '</span>' +
+                '<div class="row between" style="align-items: baseline"><span class="v">' + deNum(isMissing(v.kcal) ? undefined : v.kcal * factor, 0) + '<span class="u"> kcal</span></span><span class="pct">' + pctText(pk) + '</span></div>' +
+                barHtml(pk, false, 'big') + '<span class="small mute">von ' + deNum(T.kcal, 0) + ' kcal Tagesbedarf</span></div>';
+
+            // Makro-Kacheln
+            function tile(label, key, sub) {
+                var val = v[key], lim = !!LIMIT_KEYS[key], p = pctOf(key, val);
+                var dec = key === 'salt' ? 2 : 1;
+                return '<div class="card tile"><span class="l">' + label + ' ' + chipHtml(src[key]) + '</span>' +
+                    '<span class="v">' + deNum(isMissing(val) ? undefined : val * factor, dec) + '<span> g</span></span>' +
+                    (sub ? '<span class="s">' + sub + '</span>' : '') + barHtml(p, lim) +
+                    '<span class="small mute">' + (p === null ? 'keine Angabe' : pctText(p) + (lim ? ' vom Höchstwert' : ' vom Bedarf')) + '</span></div>';
+            }
+            var subC = isMissing(v.sugar) ? '' : 'davon Zucker ' + deNum(v.sugar * factor) + ' g';
+            var subF = isMissing(v.sat) ? '' : 'davon gesättigt ' + deNum(v.sat * factor) + ' g';
+            h += '<div class="grid2">' + tile('Eiweiß', 'p') + tile('Kohlenhydrate', 'c', subC) + tile('Fett', 'f', subF) +
+                tile('Ballaststoffe', 'fib') + tile('Salz', 'salt') + tile('Gesättigte Fette', 'sat') + '</div>';
+            if (!isMissing(v.sugar)) {
+                var ps = pctOf('sugar', v.sugar);
+                h += '<div class="card tile"><span class="l">Zucker</span><div class="row between"><span class="v" style="font-size: 22px">' + deNum(v.sugar * factor) + '<span> g</span></span><span class="small mute">' + pctText(ps) + ' vom Höchstwert</span></div>' + barHtml(ps, true) + '</div>';
+            }
+
+            h += '<div class="legend"><span class="row" style="gap: 6px"><span class="chip bls">BLS</span> aus BLS ergänzt</span>' +
+                '<span class="row" style="gap: 6px"><span class="chip est">≈ Schätzung</span> grob geschätzt</span><span>ohne Kennzeichnung = Etikett</span></div>';
+
+            // Mikronährstoffe: nach Gruppen, darin nach Prozent sortiert; Höchstwerte (Natrium) ans Ende
+            GROUPS.forEach(function(g, gi) {
+                var rows = g.keys.map(function(k) {
+                    var m = MICRO_BY_KEY[k], val = v[k], p = pctOf(k, val);
+                    return { k: k, m: m, val: val, p: p, lim: !!LIMIT_KEYS[k] };
+                });
+                rows.sort(function(a, b) {
+                    if (a.lim !== b.lim) return a.lim ? 1 : -1;
+                    if ((a.p === null) !== (b.p === null)) return a.p === null ? 1 : -1;
+                    return (b.p || 0) - (a.p || 0);
+                });
+                h += '<div class="card grp"><div class="grp-head"><h3>' + g.title + '</h3>' + (gi === 0 ? '<span class="small mute">Prozent vom Tagesbedarf pro ' + amountTxt + '</span>' : '') + '</div>';
+                rows.forEach(function(r) {
+                    var unit = UNIT_DE[r.m.unit] || r.m.unit;
+                    var shown = isMissing(r.val) ? null : r.val * factor;
+                    h += '<div class="mrow' + (r.lim ? ' lim' : '') + (shown === null ? ' na' : '') + '"><div class="top"><span class="n">' + DE[r.k] + (r.lim ? ' <span class="small mute">(max.)</span>' : '') + '</span>' + chipHtml(src[r.k]) +
+                        '<span class="val">' + (shown === null ? 'keine Angabe' : deNum(shown, microDec(r.m, shown)) + ' ' + unit) + '</span>' +
+                        '<span class="p">' + pctText(r.p) + '</span></div>' + barHtml(r.p, r.lim, 'mid') + '</div>';
+                });
+                h += '</div>';
+            });
+
+            var s = app.settings;
+            h += '<p class="small mute" style="margin: 0; line-height: 1.5">Tagesbedarf nach deinen Angaben (' + (s.sex === 'f' ? 'Frau' : 'Mann') + ', ' + deNum(s.age, 0) + ' Jahre, ' + deNum(s.weight) + ' kg) – ändern unter <button type="button" class="link-btn" style="font-size: 13px; min-height: 0" onclick="go(\'settings\')">Tagesbedarf</button>. ' +
+                'Referenzwerte: DGE. Daten: Open Food Facts, Bundeslebensmittelschlüssel 4.0 (Max Rubner-Institut). Die Prozentangaben sind Orientierung, keine medizinische Beratung.</p>';
+
+            document.getElementById('result-body').innerHTML = h;
+        }
+
+        function blsPanelHtml() {
+            var cur = app.current;
+            var h = '<div class="card bls-panel"><h3>Passendes Lebensmittel im BLS</h3>' +
+                '<span class="small mute">Daraus kommen die Werte, die nicht auf dem Etikett stehen. Etikettwerte bleiben immer erhalten.</span>';
+            (cur.cands || []).forEach(function(c, i) {
+                var sel = cur.food && cur.food.code === c.food.code;
+                h += '<button type="button" class="cand' + (sel ? ' sel' : '') + '" onclick="chooseBls(\'' + c.food.code + '\')"><span class="n">' + esc(c.food.name) + '</span>' +
+                    '<span class="d">' + deNum(blsVal(c.food, 'kcal'), 0) + ' kcal · Eiweiß ' + deNum(blsVal(c.food, 'p')) + ' · Fett ' + deNum(blsVal(c.food, 'f')) + ' · KH ' + deNum(blsVal(c.food, 'c')) + ' g' +
+                    (c.sim === null || c.sim === undefined ? '' : ' · Makros ' + Math.round(c.sim * 100) + ' % ähnlich') + '</span></button>';
+            });
+            h += '<div class="search-row"><input class="inp" id="bls-search" type="search" placeholder="Eigener Suchbegriff, z. B. Joghurt" onkeydown="if(event.key===\'Enter\') blsSearch()"><button type="button" class="pbtn" onclick="blsSearch()">Suchen</button></div>' +
+                '<button type="button" class="cand' + (cur.mode === 'none' ? ' sel' : '') + '" onclick="chooseBls(null)"><span class="n">Ohne BLS</span><span class="d">Nur Etikett und grobe Schätzung nach Produkttyp</span></button></div>';
+            return h;
+        }
+
+        function toggleBlsPanel() { app.current.panel = !app.current.panel; renderResult(); }
+
+        function chooseBls(code) {
+            var cur = app.current;
+            if (code === null) { cur.food = null; cur.mode = 'none'; }
+            else {
+                var f = BLS.foods.find(function(x) { return x.code === code; });
+                if (!f) return;
+                cur.food = f; cur.mode = 'manual';
+                if (!cur.cands.some(function(c) { return c.food.code === code; })) cur.cands.unshift({ food: f, sim: blsMacroSim(cur.raw, f), text: 0, score: 0 });
+            }
+            cur.panel = false;
+            addToHistory();
+            renderResult();
+        }
+
+        function blsSearch() {
+            var term = document.getElementById('bls-search').value.trim();
+            if (!term) return;
+            var r = app.current.raw;
+            var c = blsFindCandidates({ name: term, p: r.p, f: r.f, c: r.c, fib: r.fib, kcal: r.kcal }, 8);
+            app.current.cands = c.length ? c : app.current.cands;
+            renderResult();
+            if (!c.length) alert('Im BLS nichts zu „' + term + '“ gefunden. BLS-Namen sind deutsch und meist in der Einzahl.');
+        }
+
+        function setMode(mode) {
+            app.mode = mode;
+            if (mode === '100') app.grams = 100;
+            renderResult();
+            if (mode === 'own') {
+                var el = document.getElementById('grams-input');
+                if (el) { el.focus(); el.select(); }
+            }
+        }
+        var gramsTimer = null;
+        function setGrams(val) {
+            var g = parseFloat(String(val).replace(',', '.'));
+            if (!(g > 0)) return;
+            app.grams = Math.min(5000, g);
+            clearTimeout(gramsTimer);
+            gramsTimer = setTimeout(function() {
+                var pos = document.getElementById('grams-input');
+                var had = document.activeElement === pos;
+                renderResult();
+                if (had) { var el = document.getElementById('grams-input'); el.focus(); var l = el.value.length; try { el.setSelectionRange(l, l); } catch (e) {} }
+            }, 350);
+        }
+
+        // ---------------------------------------------------------------
+        // Verlauf (auf dem Gerät)
+        // ---------------------------------------------------------------
+        function getHistory() { return loadJson('scanner.history', []); }
+        function addToHistory() {
+            var cur = app.current;
+            if (!cur || !cur.raw || !cur.raw.code) return;
+            var list = getHistory().filter(function(h) { return h.raw.code !== cur.raw.code; });
+            list.unshift({ raw: cur.raw, bls: cur.mode === 'none' ? null : (cur.mode === 'manual' && cur.food ? cur.food.code : undefined), t: Date.now() });
+            saveJson('scanner.history', list.slice(0, HISTORY_MAX));
+        }
+        function clearHistory() {
+            if (!confirm('Verlauf wirklich löschen?')) return;
+            saveJson('scanner.history', []);
+            renderHistory();
+        }
+        function toggleHistory() { app.histExpanded = !app.histExpanded; renderHistory(); }
+        function whenText(t) {
+            var d = new Date(t), now = new Date();
+            var time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            var day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            if (t >= day0) return 'heute, ' + time;
+            if (t >= day0 - 86400000) return 'gestern, ' + time;
+            return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) + ', ' + time;
+        }
+        function renderHistory() {
+            var list = getHistory();
+            var box = document.getElementById('hist-list');
+            var tog = document.getElementById('hist-toggle');
+            tog.style.display = list.length > 5 ? '' : 'none';
+            tog.innerText = app.histExpanded ? 'Weniger' : 'Alle anzeigen';
+            if (!list.length) { box.innerHTML = '<div class="empty">Noch nichts gescannt. Tippe auf „Scannen“.</div>'; return; }
+            var shown = app.histExpanded ? list : list.slice(0, 5);
+            box.innerHTML = shown.map(function(h, i) {
+                var r = h.raw;
+                return '<button type="button" class="hist-row" onclick="openHistory(' + i + ')">' +
+                    (r.image ? '<img class="thumb" src="' + esc(r.image) + '" alt="" loading="lazy">' : '<span class="thumb" aria-hidden="true"></span>') +
+                    '<span style="flex: 1; min-width: 0"><span class="nm">' + esc(r.name) + '</span><span class="meta">' + esc([r.quantity, whenText(h.t)].filter(Boolean).join(' · ')) + '</span></span>' +
+                    '<span class="kc">' + (isMissing(r.kcal) ? '' : deNum(r.kcal, 0) + ' kcal') + '</span>' +
+                    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#56615B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></button>';
+            }).join('');
+        }
+        function openHistory(i) {
+            var h = getHistory()[i];
+            if (!h) return;
+            showLoading('Öffne …');
+            openRaw(h.raw, h.bls);
+        }
+
+        // ---------------------------------------------------------------
+        // Ziffern eingeben
+        // ---------------------------------------------------------------
+        function openDigits() {
+            document.getElementById('digits-modal').classList.add('open');
+            var el = document.getElementById('digits-input');
+            el.value = '';
+            setTimeout(function() { el.focus(); }, 50);
+        }
+        function closeDigits() { document.getElementById('digits-modal').classList.remove('open'); }
+        function submitDigits() {
+            var code = document.getElementById('digits-input').value.replace(/\D+/g, '');
+            if (code.length < 6) { alert('Bitte die Ziffern unter dem Strichcode eingeben (meist 13 Stellen).'); return; }
+            closeDigits();
+            openBarcode(code);
+        }
+
+        // ---------------------------------------------------------------
+        // Kamera-Scan (ZXing)
+        // ---------------------------------------------------------------
+        var scanner = { controls: null, reader: null, photoReader: null, session: 0, done: false, torch: false, track: null };
+
+        function loadZxing() {
+            if (window.ZXingBrowser) return Promise.resolve();
+            if (loadZxing.p) return loadZxing.p;
+            loadZxing.p = new Promise(function(resolve, reject) {
+                var i = 0;
+                (function next() {
+                    if (i >= ZXING_URLS.length) { loadZxing.p = null; reject(new Error('ZXing nicht ladbar')); return; }
+                    var s = document.createElement('script');
+                    s.src = ZXING_URLS[i++];
+                    s.onload = function() { window.ZXingBrowser ? resolve() : next(); };
+                    s.onerror = function() { s.remove(); next(); };
+                    document.head.appendChild(s);
+                })();
+            });
+            return loadZxing.p;
+        }
+        function isValidGtin(code) {
+            if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(code)) return false;
+            var d = code.split('').map(Number), check = d.pop(), sum = 0, w = 3;
+            for (var i = d.length - 1; i >= 0; i--) { sum += d[i] * w; w = (w === 3) ? 1 : 3; }
+            return (10 - sum % 10) % 10 === check;
+        }
+        function acceptBarcode(code) { return /^\d{8,14}$/.test(code) && (isValidGtin(code) || code.length === 8); }
+
+        function setScanStatus(text, err) {
+            var el = document.getElementById('scan-status');
+            el.innerText = text;
+            el.className = err ? 's err' : 's';
+        }
+
+        function stopCamera() {
+            scanner.session++;
+            if (scanner.controls) { try { scanner.controls.stop(); } catch (e) {} scanner.controls = null; }
+            var v = document.getElementById('video');
+            if (v.srcObject) { try { v.srcObject.getTracks().forEach(function(t) { t.stop(); }); } catch (e) {} v.srcObject = null; }
+            scanner.track = null; scanner.torch = false;
+            var tb = document.getElementById('torch-btn');
+            tb.hidden = true; tb.classList.remove('on');
+        }
+        function leaveScan() { stopCamera(); goBack(); }
+
+        async function startScan() {
+            go('scan');
+            var session = ++scanner.session;
+            scanner.done = false;
+            setScanStatus('Kamera wird gestartet …');
+            try { await loadZxing(); }
+            catch (e) { setScanStatus('Scanner konnte nicht geladen werden (offline?). Ziffern eingeben geht trotzdem.', true); return; }
+            if (session !== scanner.session) return;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                setScanStatus('Dieser Browser erlaubt keinen Kamerazugriff. Nutze „Foto aufnehmen“.', true);
+                return;
+            }
+            if (!scanner.reader) scanner.reader = new ZXingBrowser.BrowserMultiFormatReader();
+            var video = document.getElementById('video');
+            try {
+                var controls = await scanner.reader.decodeFromConstraints(
+                    { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+                    video,
+                    function(result) {
+                        if (!result || scanner.done || session !== scanner.session) return;
+                        var code = String(result.getText ? result.getText() : (result.text || '')).trim();
+                        if (!acceptBarcode(code)) return;
+                        scanner.done = true;
+                        if (navigator.vibrate) navigator.vibrate(60);
+                        stopCamera();
+                        openBarcode(code);
+                    });
+                if (session !== scanner.session) { try { controls.stop(); } catch (e) {} return; }
+                scanner.controls = controls;
+                setScanStatus('Wird automatisch erkannt – kein Auslöser nötig');
+                setupTorch(video);
+            } catch (e) {
+                if (session !== scanner.session) return;
+                setScanStatus(e && e.name === 'NotAllowedError'
+                    ? 'Kamera nicht erlaubt. In Safari: „aA“ → Website-Einstellungen → Kamera → Erlauben. Oder „Foto aufnehmen“ nutzen.'
+                    : 'Kamera startet nicht (' + ((e && (e.name || e.message)) || e) + '). Nutze „Foto aufnehmen“.', true);
+            }
+        }
+
+        function setupTorch(video) {
+            setTimeout(function() {
+                try {
+                    var track = video.srcObject && video.srcObject.getVideoTracks()[0];
+                    var caps = track && track.getCapabilities ? track.getCapabilities() : {};
+                    if (track && caps.torch) { scanner.track = track; document.getElementById('torch-btn').hidden = false; }
+                } catch (e) {}
+            }, 600);
+        }
+        function toggleTorch() {
+            if (!scanner.track) return;
+            scanner.torch = !scanner.torch;
+            scanner.track.applyConstraints({ advanced: [{ torch: scanner.torch }] }).catch(function() {});
+            var tb = document.getElementById('torch-btn');
+            tb.classList.toggle('on', scanner.torch);
+            tb.setAttribute('aria-pressed', scanner.torch);
+        }
+
+        // Foto: verkleinern, drehen, Mitte ausschneiden – mehrere Versuche
+        function loadImage(src) {
+            return new Promise(function(res, rej) { var img = new Image(); img.onload = function() { res(img); }; img.onerror = rej; img.src = src; });
+        }
+        function imageToDataUrl(img, maxSide, rotate, crop) {
+            var sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+            if (crop) { sx = sw * 0.2; sy = sh * 0.2; sw *= 0.6; sh *= 0.6; }
+            var sc = Math.min(1, maxSide / Math.max(sw, sh)), w = Math.round(sw * sc), h = Math.round(sh * sc);
+            var c = document.createElement('canvas');
+            c.width = rotate ? h : w; c.height = rotate ? w : h;
+            var ctx = c.getContext('2d');
+            if (rotate) { ctx.translate(h, 0); ctx.rotate(Math.PI / 2); }
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+            return c.toDataURL('image/jpeg', 0.92);
+        }
+        async function scanPhotoFile(ev) {
+            var file = ev.target.files && ev.target.files[0];
+            ev.target.value = '';
+            if (!file) return;
+            stopCamera();
+            showLoading('Strichcode auf dem Foto suchen …');
+            try { await loadZxing(); }
+            catch (e) { renderMessage('Scanner nicht geladen', 'Der Scanner konnte nicht geladen werden (offline?). Bitte die Ziffern eingeben.', null, false); return; }
+            if (!scanner.photoReader) {
+                try { scanner.photoReader = new ZXingBrowser.BrowserMultiFormatReader(new Map([[3, true]])); }   // 3 = TRY_HARDER
+                catch (e) { scanner.photoReader = new ZXingBrowser.BrowserMultiFormatReader(); }
+            }
+            var url = URL.createObjectURL(file);
+            try {
+                var img = await loadImage(url);
+                var tries = [[1600, 0, 0], [1600, 0, 1], [1000, 0, 0], [2400, 0, 0], [1600, 1, 0], [1600, 1, 1], [1000, 1, 0]];
+                for (var i = 0; i < tries.length; i++) {
+                    try {
+                        var r = await scanner.photoReader.decodeFromImageUrl(imageToDataUrl(img, tries[i][0], tries[i][1], tries[i][2]));
+                        var code = String(r.getText ? r.getText() : (r.text || '')).trim();
+                        if (acceptBarcode(code)) { openBarcode(code); return; }
+                    } catch (e) {}
+                }
+                renderMessage('Kein Strichcode erkannt', 'Auf dem Foto wurde kein Strichcode gefunden. Fotografiere ihn näher, scharf und ohne Spiegelung – oder gib die Ziffern ein.', null, false);
+            } catch (e) {
+                renderMessage('Foto nicht lesbar', 'Das Foto konnte nicht geöffnet werden.', null, false);
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Start
+        // ---------------------------------------------------------------
+        loadSettings();
+        try { history.replaceState({ s: 'home' }, '', location.pathname + location.search); } catch (e) {}
+        renderHistory();
+        if (!loadJson('scanner.settings', null)) {
+            document.getElementById('home-status').innerHTML = 'Tipp: Unter <button type="button" class="link-btn" style="font-size: 13px; min-height: 0" onclick="go(\'settings\')">Tagesbedarf</button> Geschlecht, Alter und Gewicht eintragen.';
+        }
+        setTimeout(ensureBls, 300);
+        setTimeout(function() { loadZxing().catch(function() {}); }, 1500);
+</script>
+</body>
+</html>
